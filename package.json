@@ -1,0 +1,29 @@
+{
+  "name": "nextjs-citisignal-integration",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@adobe/aio-sdk": "^3.0.0",
+    "@adobe/exc-app": "^1.0.0",
+    "@adobe/generator-app-api-mesh": "^0.3.1",
+    "core-js": "^3.6.4",
+    "dotenv": "^17.2.0",
+    "node-fetch": "^3.3.2",
+    "regenerator-runtime": "^0.13.5"
+  },
+  "devDependencies": {
+    "@openapi-mesh/cli": "^0.9.22",
+    "@openapi-mesh/openapi": "^0.9.22",
+    "@openapi-mesh/types": "^0.9.22",
+    "jest": "^27.2.4"
+  },
+  "scripts": {
+    "test": "jest --passWithNoTests ./test",
+    "e2e": "jest --passWithNoTests ./e2e",
+    "start": "node app.js"
+  },
+  "engines": {
+    "node": "^14 || ^16 || ^18"
+  }
+}
