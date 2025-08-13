@@ -1,10 +1,163 @@
 /**
  * Custom resolvers for Adobe API Mesh
- * Adds fields to existing Catalog Service types
+ * Adds fields to existing Catalog Service types and simplified product queries
  */
 
 module.exports = {
   resolvers: {
+    Query: {
+      simpleProducts: {
+        selectionSet: `{
+          Catalog_productSearch(
+            phrase: $category
+            page_size: 20
+          ) {
+            items {
+              productView {
+                id
+                name
+                sku
+                urlKey
+                shortDescription
+                images(roles: []) {
+                  url
+                  label
+                  roles
+                }
+                ... on Catalog_SimpleProductView {
+                  price {
+                    final {
+                      amount {
+                        value
+                        currency
+                      }
+                    }
+                    regular {
+                      amount {
+                        value
+                        currency
+                      }
+                    }
+                  }
+                  attributes {
+                    name
+                    value
+                  }
+                }
+                ... on Catalog_ComplexProductView {
+                  priceRange {
+                    minimum {
+                      final {
+                        amount {
+                          value
+                          currency
+                        }
+                      }
+                      regular {
+                        amount {
+                          value
+                          currency
+                        }
+                      }
+                    }
+                  }
+                  attributes {
+                    name
+                    value
+                  }
+                  options {
+                    id
+                    title
+                    required
+                    values {
+                      id
+                      title
+                      ... on Catalog_ProductViewOptionValueSwatch {
+                        type
+                        value
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            page_info {
+              current_page
+              page_size
+              total_pages
+            }
+            total_count
+          }
+        }`,
+        resolve: (root, args, context, info) => {
+          const searchResult = root.Catalog_productSearch;
+          if (!searchResult || !searchResult.items) {
+            return [];
+          }
+
+          return searchResult.items.map(item => {
+            const product = item.productView;
+            
+            // Get price based on product type
+            let price = 0;
+            let originalPrice = 0;
+            let currency = 'USD';
+            
+            if (product.__typename === 'Catalog_SimpleProductView' && product.price) {
+              price = product.price.final?.amount?.value || 0;
+              originalPrice = product.price.regular?.amount?.value || 0;
+              currency = product.price.final?.amount?.currency || 'USD';
+            } else if (product.__typename === 'Catalog_ComplexProductView' && product.priceRange) {
+              price = product.priceRange.minimum?.final?.amount?.value || 0;
+              originalPrice = product.priceRange.minimum?.regular?.amount?.value || 0;
+              currency = product.priceRange.minimum?.final?.amount?.currency || 'USD';
+            }
+            
+            // Flatten attributes into specs object
+            const specs = {};
+            if (product.attributes) {
+              product.attributes.forEach(attr => {
+                if (attr.name && attr.value) {
+                  // Clean up attribute names for better readability
+                  const cleanName = attr.name
+                    .replace(/^cs_/, '')
+                    .replace(/_/g, ' ')
+                    .replace(/\b\w/g, c => c.toUpperCase());
+                  specs[cleanName] = attr.value;
+                }
+              });
+            }
+            
+            // Add options for complex products
+            if (product.options) {
+              product.options.forEach(option => {
+                if (option.title && option.values) {
+                  const values = option.values.map(v => v.title || v.value).filter(Boolean);
+                  if (values.length > 0) {
+                    specs[option.title] = values.join(', ');
+                  }
+                }
+              });
+            }
+            
+            return {
+              id: product.id,
+              name: product.name,
+              sku: product.sku,
+              url: product.urlKey,
+              description: product.shortDescription || '',
+              image: product.images?.[0]?.url || null,
+              price: price,
+              originalPrice: originalPrice,
+              currency: currency,
+              onSale: price < originalPrice,
+              specs: JSON.stringify(specs) // Converting to string since GraphQL doesn't support arbitrary object types
+            };
+          });
+        }
+      }
+    },
+    
     // Add fields to Catalog_ComplexProductView
     Catalog_ComplexProductView: {
       manufacturer: {

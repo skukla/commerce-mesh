@@ -85,7 +85,7 @@
         ]
       }
     ],
-    "additionalTypeDefs": "extend type Catalog_ComplexProductView { manufacturer: String memory_options: [String] available_colors: [ColorOption] is_on_sale: Boolean } extend type Catalog_SimpleProductView { manufacturer: String is_on_sale: Boolean } type ColorOption { name: String hex: String }",
+    "additionalTypeDefs": "extend type Catalog_ComplexProductView { manufacturer: String memory_options: [String] available_colors: [ColorOption] is_on_sale: Boolean } extend type Catalog_SimpleProductView { manufacturer: String is_on_sale: Boolean } type ColorOption { name: String hex: String } type SimpleProduct { id: String name: String sku: String url: String description: String image: String price: Float originalPrice: Float currency: String onSale: Boolean specs: String } extend type Query { simpleProducts(category: String): [SimpleProduct] }",
     "additionalResolvers": ["./resolvers.js"],
     "responseConfig": {
       "CORS": {
