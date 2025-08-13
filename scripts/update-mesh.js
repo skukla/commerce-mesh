@@ -97,9 +97,10 @@ async function updateMesh() {
   console.log(format.success(`Updating mesh in ${environment}...`));
   
   try {
-    // Run the mesh update command
-    execSync(`aio api-mesh:update${isProd ? ' --prod' : ''}`, {
-      stdio: 'inherit'
+    // Run the mesh update command with mesh.json file, auto-confirming with echo "y"
+    execSync(`echo "y" | aio api-mesh:update mesh.json${isProd ? ' --prod' : ''}`, {
+      stdio: 'inherit',
+      shell: true
     });
     
     // Poll for status

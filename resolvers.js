@@ -26,13 +26,6 @@ const calculateDiscountPercentage = (regularPrice, finalPrice) => {
   return Math.round(discount * 10) / 10; // Round to 1 decimal place
 };
 
-const cleanAttributeName = (name) => {
-  return name
-    .replace(/^cs_/, '')
-    .replace(/_/g, ' ')
-    .replace(/\b\w/g, c => c.toUpperCase());
-};
-
 // Query string for fetching product data from Catalog service
 const PRODUCT_SEARCH_QUERY = `{
   items {
@@ -47,6 +40,61 @@ const PRODUCT_SEARCH_QUERY = `{
         url
         label
         roles
+      }
+      ... on Catalog_SimpleProductView {
+        price {
+          regular {
+            amount {
+              value
+              currency
+            }
+          }
+          final {
+            amount {
+              value
+              currency
+            }
+          }
+        }
+        inStock
+        attributes {
+          name
+          label
+          value
+        }
+      }
+      ... on Catalog_ComplexProductView {
+        priceRange {
+          minimum {
+            regular {
+              amount {
+                value
+                currency
+              }
+            }
+            final {
+              amount {
+                value
+                currency
+              }
+            }
+          }
+        }
+        inStock
+        attributes {
+          name
+          label
+          value
+        }
+        options {
+          title
+          values {
+            ... on Catalog_ProductViewOptionValueSwatch {
+              title
+              value
+            }
+          }
+        }
       }
     }
   }
@@ -181,25 +229,19 @@ module.exports = {
         }
       },
       in_stock: {
-        selectionSet: '{ stock_status }',
+        selectionSet: '{ inStock }',
         resolve: (root, args, context, info) => {
-          return root.stock_status === 'IN_STOCK';
-        }
-      },
-      primary_category: {
-        selectionSet: '{ categories { name url_path } }',
-        resolve: (root, args, context, info) => {
-          return root.categories?.[0] || null;
+          return root.inStock || false;
         }
       },
       specifications: {
-        selectionSet: '{ custom_attributes { code label value { label value } } }',
+        selectionSet: '{ attributes { name label value } }',
         resolve: (root, args, context, info) => {
-          if (!root.custom_attributes) return [];
+          if (!root.attributes) return [];
           
-          return root.custom_attributes.map(attr => ({
-            name: attr.label || cleanAttributeName(attr.code),
-            value: attr.value?.label || attr.value?.value || ''
+          return root.attributes.map(attr => ({
+            name: attr.label || attr.name || '',
+            value: attr.value || ''
           }));
         }
       },
@@ -263,25 +305,19 @@ module.exports = {
         }
       },
       in_stock: {
-        selectionSet: '{ stock_status }',
+        selectionSet: '{ inStock }',
         resolve: (root, args, context, info) => {
-          return root.stock_status === 'IN_STOCK';
-        }
-      },
-      primary_category: {
-        selectionSet: '{ categories { name url_path } }',
-        resolve: (root, args, context, info) => {
-          return root.categories?.[0] || null;
+          return root.inStock || false;
         }
       },
       specifications: {
-        selectionSet: '{ custom_attributes { code label value { label value } } }',
+        selectionSet: '{ attributes { name label value } }',
         resolve: (root, args, context, info) => {
-          if (!root.custom_attributes) return [];
+          if (!root.attributes) return [];
           
-          return root.custom_attributes.map(attr => ({
-            name: attr.label || cleanAttributeName(attr.code),
-            value: attr.value?.label || attr.value?.value || ''
+          return root.attributes.map(attr => ({
+            name: attr.label || attr.name || '',
+            value: attr.value || ''
           }));
         }
       }
