@@ -1,19 +1,5 @@
 {
   "meshConfig": {
-    "responseConfig": {
-      "CORS": {
-        "credentials": true,
-        "exposedHeaders": ["Content-Range", "X-Content-Range"],
-        "maxAge": 60480,
-        "methods": ["GET", "POST"],
-        "origin": "*"
-      },
-      "headers": {
-        "mode": "no-cors",
-        "x-include-metadata": "true"
-      },
-      "includeHTTPDetails": false
-    },
     "sources": [
       {
         "name": "CommerceGraphQL",
@@ -36,7 +22,7 @@
         }
       },
       {
-        "name": "CatalogService",
+        "name": "CatalogServiceSandbox",
         "transforms": [
           {
             "prefix": {
@@ -55,18 +41,66 @@
               "Magento-Store-View-Code": "{context.headers['magento-store-view-code']}",
               "Magento-Store-Code": "{context.headers['magento-store-code']}",
               "Magento-Customer-Group": "{context.headers['magento-customer-group']}",
-              "x-api-key": "{context.headers['x-api-key']}",
+              "X-Api-Key": "{context.headers['x-api-key']}",
               "Authorization": "{context.headers['Authorization']}"
             },
             "schemaHeaders": {
-              "x-api-key": "storefront-widgets"
+              "x-api-key": "{env.ADOBE_CATALOG_API_KEY}"
             }
           }
         },
         "responseConfig": {
           "headers": ["X-Magento-Cache-Id"]
         }
+      },
+      {
+        "name": "LiveSearchSandbox",
+        "transforms": [
+          {
+            "prefix": {
+              "value": "Search_",
+              "includeRootOperations": true
+            }
+          }
+        ],
+        "handler": {
+          "graphql": {
+            "endpoint": "https://catalog-service-sandbox.adobe.io/graphql",
+            "operationHeaders": {
+              "Content-Type": "application/json",
+              "Magento-Environment-Id": "{context.headers['magento-environment-id']}",
+              "Magento-Website-Code": "{context.headers['magento-website-code']}",
+              "Magento-Store-View-Code": "{context.headers['magento-store-view-code']}",
+              "Magento-Store-Code": "{context.headers['magento-store-code']}",
+              "X-Api-Key": "search_gql"
+            },
+            "schemaHeaders": {
+              "Magento-Environment-Id": "{env.ADOBE_COMMERCE_ENVIRONMENT_ID}",
+              "Magento-Website-Code": "{env.ADOBE_COMMERCE_WEBSITE_CODE}",
+              "Magento-Store-View-Code": "{env.ADOBE_COMMERCE_STORE_VIEW_CODE}",
+              "Magento-Store-Code": "{env.ADOBE_COMMERCE_STORE_CODE}",
+              "X-Api-Key": "search_gql"
+            }
+          }
+        }
       }
-    ]
+    ],
+    "additionalTypeDefs": "extend type Catalog_ComplexProductView { manufacturer: String memory_options: [String] available_colors: [ColorOption] is_on_sale: Boolean } extend type Catalog_SimpleProductView { manufacturer: String is_on_sale: Boolean } type ColorOption { name: String hex: String }",
+    "additionalResolvers": ["./resolvers.js"],
+    "responseConfig": {
+      "CORS": {
+        "credentials": true,
+        "exposedHeaders": ["Content-Range", "X-Content-Range", "X-Magento-Cache-Id"],
+        "maxAge": 60480,
+        "methods": ["GET", "POST"],
+        "origin": "*"
+      },
+      "headers": {
+        "mode": "no-cors",
+        "x-include-metadata": "true"
+      },
+      "includeHTTPDetails": false,
+      "cache": true
+    }
   }
 }
