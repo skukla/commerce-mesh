@@ -3,157 +3,118 @@
  * Adds fields to existing Catalog Service types and simplified product queries
  */
 
+// Helper functions (must be inline)
+const extractManufacturer = (attributes) => {
+  if (!attributes) return 'CitiSignal';
+  
+  const manufacturerAttr = attributes.find(attr => 
+    attr.name === 'cs_manufacturer' || attr.name === 'manufacturer'
+  );
+  
+  return manufacturerAttr?.value || 'CitiSignal';
+};
+
+const calculateIsOnSale = (regularPrice, finalPrice) => {
+  return finalPrice < regularPrice;
+};
+
+const calculateDiscountPercentage = (regularPrice, finalPrice) => {
+  if (!regularPrice || regularPrice <= 0) return 0;
+  if (!finalPrice || finalPrice >= regularPrice) return 0;
+  
+  const discount = ((regularPrice - finalPrice) / regularPrice) * 100;
+  return Math.round(discount * 10) / 10; // Round to 1 decimal place
+};
+
+const cleanAttributeName = (name) => {
+  return name
+    .replace(/^cs_/, '')
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, c => c.toUpperCase());
+};
+
+// Query string for fetching product data from Catalog service
+const PRODUCT_SEARCH_QUERY = `{
+  items {
+    productView {
+      __typename
+      id
+      name
+      sku
+      urlKey
+      shortDescription
+      images(roles: []) {
+        url
+        label
+        roles
+      }
+    }
+  }
+  page_info {
+    current_page
+    page_size
+    total_pages
+  }
+  total_count
+}`;
+
 module.exports = {
   resolvers: {
     Query: {
-      simpleProducts: {
-        selectionSet: `{
-          Catalog_productSearch(
-            phrase: $category
-            page_size: 20
-          ) {
-            items {
-              productView {
-                id
-                name
-                sku
-                urlKey
-                shortDescription
-                images(roles: []) {
-                  url
-                  label
-                  roles
-                }
-                ... on Catalog_SimpleProductView {
-                  price {
-                    final {
-                      amount {
-                        value
-                        currency
-                      }
-                    }
-                    regular {
-                      amount {
-                        value
-                        currency
-                      }
-                    }
-                  }
-                  attributes {
-                    name
-                    value
-                  }
-                }
-                ... on Catalog_ComplexProductView {
-                  priceRange {
-                    minimum {
-                      final {
-                        amount {
-                          value
-                          currency
-                        }
-                      }
-                      regular {
-                        amount {
-                          value
-                          currency
-                        }
-                      }
-                    }
-                  }
-                  attributes {
-                    name
-                    value
-                  }
-                  options {
-                    id
-                    title
-                    required
-                    values {
-                      id
-                      title
-                      ... on Catalog_ProductViewOptionValueSwatch {
-                        type
-                        value
-                      }
-                    }
-                  }
-                }
-              }
-            }
-            page_info {
-              current_page
-              page_size
-              total_pages
-            }
-            total_count
-          }
-        }`,
-        resolve: (root, args, context, info) => {
-          const searchResult = root.Catalog_productSearch;
-          if (!searchResult || !searchResult.items) {
-            return [];
-          }
+      products: {
+        resolve: async (root, args, context, info) => {
+          try {
+            // Call the Catalog service programmatically
+            const searchResult = await context.CatalogServiceSandbox.Query.Catalog_productSearch({
+              root: {},
+              args: {
+                phrase: args.phrase || '',
+                filter: args.filter || [],
+                page_size: args.limit || 20,
+                current_page: args.page || 1
+              },
+              context,
+              selectionSet: PRODUCT_SEARCH_QUERY
+            });
 
-          return searchResult.items.map(item => {
-            const product = item.productView;
-            
-            // Get price based on product type
-            let price = 0;
-            let originalPrice = 0;
-            let currency = 'USD';
-            
-            if (product.__typename === 'Catalog_SimpleProductView' && product.price) {
-              price = product.price.final?.amount?.value || 0;
-              originalPrice = product.price.regular?.amount?.value || 0;
-              currency = product.price.final?.amount?.currency || 'USD';
-            } else if (product.__typename === 'Catalog_ComplexProductView' && product.priceRange) {
-              price = product.priceRange.minimum?.final?.amount?.value || 0;
-              originalPrice = product.priceRange.minimum?.regular?.amount?.value || 0;
-              currency = product.priceRange.minimum?.final?.amount?.currency || 'USD';
-            }
-            
-            // Flatten attributes into specs object
-            const specs = {};
-            if (product.attributes) {
-              product.attributes.forEach(attr => {
-                if (attr.name && attr.value) {
-                  // Clean up attribute names for better readability
-                  const cleanName = attr.name
-                    .replace(/^cs_/, '')
-                    .replace(/_/g, ' ')
-                    .replace(/\b\w/g, c => c.toUpperCase());
-                  specs[cleanName] = attr.value;
+            // If no result, return empty response
+            if (!searchResult) {
+              return {
+                items: [],
+                total: 0,
+                page_info: {
+                  current_page: args.page || 1,
+                  page_size: args.limit || 20,
+                  total_pages: 0
                 }
-              });
+              };
             }
-            
-            // Add options for complex products
-            if (product.options) {
-              product.options.forEach(option => {
-                if (option.title && option.values) {
-                  const values = option.values.map(v => v.title || v.value).filter(Boolean);
-                  if (values.length > 0) {
-                    specs[option.title] = values.join(', ');
-                  }
-                }
-              });
-            }
-            
+
+            // Transform the results to our custom structure
             return {
-              id: product.id,
-              name: product.name,
-              sku: product.sku,
-              url: product.urlKey,
-              description: product.shortDescription || '',
-              image: product.images?.[0]?.url || null,
-              price: price,
-              originalPrice: originalPrice,
-              currency: currency,
-              onSale: price < originalPrice,
-              specs: JSON.stringify(specs) // Converting to string since GraphQL doesn't support arbitrary object types
+              items: searchResult.items?.map(item => ({
+                product: item.productView
+              })) || [],
+              total: searchResult.total_count || 0,
+              page_info: searchResult.page_info || {
+                current_page: args.page || 1,
+                page_size: args.limit || 20,
+                total_pages: 0
+              }
             };
-          });
+          } catch (error) {
+            console.error('Products query error:', error);
+            // Return empty result on error
+            return {
+              items: [],
+              total: 0,
+              page_info: {
+                current_page: args.page || 1,
+                page_size: args.limit || 20,
+                total_pages: 0
+              }
+            };
+          }
         }
       }
     },
@@ -163,13 +124,7 @@ module.exports = {
       manufacturer: {
         selectionSet: '{ attributes { name value } }',
         resolve: (root, args, context, info) => {
-          if (!root.attributes) return 'CitiSignal';
-          
-          const manufacturerAttr = root.attributes.find(attr => 
-            attr.name === 'cs_manufacturer' || attr.name === 'manufacturer'
-          );
-          
-          return manufacturerAttr?.value || 'CitiSignal';
+          return extractManufacturer(root.attributes);
         }
       },
       memory_options: {
@@ -200,7 +155,69 @@ module.exports = {
           
           const regular = root.priceRange.minimum.regular.amount.value;
           const final = root.priceRange.minimum.final.amount.value;
-          return final < regular;
+          return calculateIsOnSale(regular, final);
+        }
+      },
+      display_price: {
+        selectionSet: '{ priceRange { minimum { final { amount { value } } } } }',
+        resolve: (root, args, context, info) => {
+          return root.priceRange?.minimum?.final?.amount?.value || 0;
+        }
+      },
+      display_currency: {
+        selectionSet: '{ priceRange { minimum { final { amount { currency } } } } }',
+        resolve: (root, args, context, info) => {
+          return root.priceRange?.minimum?.final?.amount?.currency || 'USD';
+        }
+      },
+      discount_percentage: {
+        selectionSet: '{ priceRange { minimum { regular { amount { value } } final { amount { value } } } } }',
+        resolve: (root, args, context, info) => {
+          if (!root.priceRange) return 0;
+          
+          const regular = root.priceRange.minimum.regular.amount.value;
+          const final = root.priceRange.minimum.final.amount.value;
+          return calculateDiscountPercentage(regular, final);
+        }
+      },
+      in_stock: {
+        selectionSet: '{ stock_status }',
+        resolve: (root, args, context, info) => {
+          return root.stock_status === 'IN_STOCK';
+        }
+      },
+      primary_category: {
+        selectionSet: '{ categories { name url_path } }',
+        resolve: (root, args, context, info) => {
+          return root.categories?.[0] || null;
+        }
+      },
+      specifications: {
+        selectionSet: '{ custom_attributes { code label value { label value } } }',
+        resolve: (root, args, context, info) => {
+          if (!root.custom_attributes) return [];
+          
+          return root.custom_attributes.map(attr => ({
+            name: attr.label || cleanAttributeName(attr.code),
+            value: attr.value?.label || attr.value?.value || ''
+          }));
+        }
+      },
+      formatted_options: {
+        selectionSet: '{ options { id title required values { id title ... on Catalog_ProductViewOptionValueSwatch { type value } } } }',
+        resolve: (root, args, context, info) => {
+          if (!root.options) return [];
+          
+          return root.options.map(option => ({
+            id: option.id,
+            title: option.title,
+            required: option.required || false,
+            values: option.values?.map(v => ({
+              id: v.id,
+              title: v.title,
+              value: v.value || null
+            })) || []
+          }));
         }
       }
     },
@@ -210,13 +227,7 @@ module.exports = {
       manufacturer: {
         selectionSet: '{ attributes { name value } }',
         resolve: (root, args, context, info) => {
-          if (!root.attributes) return 'CitiSignal';
-          
-          const manufacturerAttr = root.attributes.find(attr => 
-            attr.name === 'cs_manufacturer' || attr.name === 'manufacturer'
-          );
-          
-          return manufacturerAttr?.value || 'CitiSignal';
+          return extractManufacturer(root.attributes);
         }
       },
       is_on_sale: {
@@ -226,7 +237,52 @@ module.exports = {
           
           const regular = root.price.regular.amount.value;
           const final = root.price.final.amount.value;
-          return final < regular;
+          return calculateIsOnSale(regular, final);
+        }
+      },
+      display_price: {
+        selectionSet: '{ price { final { amount { value } } } }',
+        resolve: (root, args, context, info) => {
+          return root.price?.final?.amount?.value || 0;
+        }
+      },
+      display_currency: {
+        selectionSet: '{ price { final { amount { currency } } } }',
+        resolve: (root, args, context, info) => {
+          return root.price?.final?.amount?.currency || 'USD';
+        }
+      },
+      discount_percentage: {
+        selectionSet: '{ price { regular { amount { value } } final { amount { value } } } }',
+        resolve: (root, args, context, info) => {
+          if (!root.price) return 0;
+          
+          const regular = root.price.regular.amount.value;
+          const final = root.price.final.amount.value;
+          return calculateDiscountPercentage(regular, final);
+        }
+      },
+      in_stock: {
+        selectionSet: '{ stock_status }',
+        resolve: (root, args, context, info) => {
+          return root.stock_status === 'IN_STOCK';
+        }
+      },
+      primary_category: {
+        selectionSet: '{ categories { name url_path } }',
+        resolve: (root, args, context, info) => {
+          return root.categories?.[0] || null;
+        }
+      },
+      specifications: {
+        selectionSet: '{ custom_attributes { code label value { label value } } }',
+        resolve: (root, args, context, info) => {
+          if (!root.custom_attributes) return [];
+          
+          return root.custom_attributes.map(attr => ({
+            name: attr.label || cleanAttributeName(attr.code),
+            value: attr.value?.label || attr.value?.value || ''
+          }));
         }
       }
     }
