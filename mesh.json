@@ -3,14 +3,6 @@
     "sources": [
       {
         "name": "CommerceGraphQL",
-        "transforms": [
-          {
-            "prefix": {
-              "value": "Commerce_",
-              "includeRootOperations": true
-            }
-          }
-        ],
         "handler": {
           "graphql": {
             "endpoint": "https://com774.adobedemo.com/graphql",
@@ -19,18 +11,18 @@
               "Store": "{context.headers['store']}"
             }
           }
-        }
-      },
-      {
-        "name": "CatalogServiceSandbox",
+        },
         "transforms": [
           {
             "prefix": {
-              "value": "Catalog_",
+              "value": "Commerce_",
               "includeRootOperations": true
             }
           }
-        ],
+        ]
+      },
+      {
+        "name": "CatalogServiceSandbox",
         "handler": {
           "graphql": {
             "endpoint": "https://catalog-service-sandbox.adobe.io/graphql",
@@ -49,20 +41,20 @@
             }
           }
         },
+        "transforms": [
+          {
+            "prefix": {
+              "value": "Catalog_",
+              "includeRootOperations": true
+            }
+          }
+        ],
         "responseConfig": {
           "headers": ["X-Magento-Cache-Id"]
         }
       },
       {
         "name": "LiveSearchSandbox",
-        "transforms": [
-          {
-            "prefix": {
-              "value": "Search_",
-              "includeRootOperations": true
-            }
-          }
-        ],
         "handler": {
           "graphql": {
             "endpoint": "https://catalog-service-sandbox.adobe.io/graphql",
@@ -82,7 +74,15 @@
               "X-Api-Key": "search_gql"
             }
           }
-        }
+        },
+        "transforms": [
+          {
+            "prefix": {
+              "value": "Search_",
+              "includeRootOperations": true
+            }
+          }
+        ]
       }
     ],
     "additionalTypeDefs": "extend type Catalog_ComplexProductView { manufacturer: String memory_options: [String] available_colors: [ColorOption] is_on_sale: Boolean } extend type Catalog_SimpleProductView { manufacturer: String is_on_sale: Boolean } type ColorOption { name: String hex: String }",
