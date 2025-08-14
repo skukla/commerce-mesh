@@ -14,6 +14,32 @@ const extractManufacturer = (attributes) => {
   return manufacturerAttr?.value || 'CitiSignal';
 };
 
+const extractPrice = (product) => {
+  const isComplex = product.__typename === 'Catalog_ComplexProductView';
+  return isComplex 
+    ? product.priceRange?.minimum?.final?.amount?.value
+    : product.price?.final?.amount?.value;
+};
+
+const extractMemoryOptions = (options) => {
+  if (!options) return [];
+  const memoryOption = options.find(opt => opt.title === 'Memory');
+  return memoryOption?.values?.map(v => v.title) || [];
+};
+
+const extractColorOptions = (options) => {
+  if (!options) return [];
+  const colorOption = options.find(opt => opt.title === 'Color');
+  return colorOption?.values?.map(v => ({
+    name: v.title,
+    hex: v.value || '#000000'
+  })) || [];
+};
+
+const extractPrimaryImage = (images) => {
+  return images?.[0]?.url || null;
+};
+
 const calculateIsOnSale = (regularPrice, finalPrice) => {
   return finalPrice < regularPrice;
 };
@@ -26,20 +52,18 @@ const calculateDiscountPercentage = (regularPrice, finalPrice) => {
   return Math.round(discount * 10) / 10; // Round to 1 decimal place
 };
 
-// Query string for fetching product data from Catalog service
-const PRODUCT_SEARCH_QUERY = `{
+// Minimal query for product cards (listing pages)
+const PRODUCT_CARD_QUERY = `{
   items {
     productView {
       __typename
       id
       name
       sku
-      urlKey
-      shortDescription
-      images(roles: []) {
+      inStock
+      images(roles: ["image"]) {
         url
         label
-        roles
       }
       ... on Catalog_SimpleProductView {
         price {
@@ -56,7 +80,6 @@ const PRODUCT_SEARCH_QUERY = `{
             }
           }
         }
-        inStock
         attributes {
           name
           label
@@ -80,15 +103,17 @@ const PRODUCT_SEARCH_QUERY = `{
             }
           }
         }
-        inStock
         attributes {
           name
           label
           value
         }
         options {
+          id
           title
+          required
           values {
+            id
             ... on Catalog_ProductViewOptionValueSwatch {
               title
               value
@@ -109,27 +134,60 @@ const PRODUCT_SEARCH_QUERY = `{
 module.exports = {
   resolvers: {
     Query: {
-      products: {
+      Citisignal_productCards: {
         resolve: async (root, args, context, info) => {
           try {
-            // Call the Catalog service programmatically
+            // Transform our simplified filter to Catalog format
+            const catalogFilters = [];
+            if (args.filter) {
+              if (args.filter.category) {
+                catalogFilters.push({
+                  attribute: 'categoryPath',
+                  in: [args.filter.category]
+                });
+              }
+              if (args.filter.manufacturer) {
+                catalogFilters.push({
+                  attribute: 'manufacturer',
+                  eq: args.filter.manufacturer
+                });
+              }
+              if (args.filter.price_min !== undefined || args.filter.price_max !== undefined) {
+                catalogFilters.push({
+                  attribute: 'price',
+                  range: {
+                    from: args.filter.price_min || 0,
+                    to: args.filter.price_max || 999999
+                  }
+                });
+              }
+              if (args.filter.in_stock_only) {
+                catalogFilters.push({
+                  attribute: 'inStock',
+                  eq: 'true'
+                });
+              }
+              // Note: on_sale_only would need custom logic since it's computed
+            }
+            
+            // Call the Catalog service with minimal query
             const searchResult = await context.CatalogServiceSandbox.Query.Catalog_productSearch({
               root: {},
               args: {
                 phrase: args.phrase || '',
-                filter: args.filter || [],
+                filter: catalogFilters,
                 page_size: args.limit || 20,
                 current_page: args.page || 1
               },
               context,
-              selectionSet: PRODUCT_SEARCH_QUERY
+              selectionSet: PRODUCT_CARD_QUERY
             });
 
             // If no result, return empty response
             if (!searchResult) {
               return {
                 items: [],
-                total: 0,
+                total_count: 0,
                 page_info: {
                   current_page: args.page || 1,
                   page_size: args.limit || 20,
@@ -138,12 +196,64 @@ module.exports = {
               };
             }
 
-            // Transform the results to our custom structure
+            // Transform items to ProductCard type with flattened structure
+            const items = searchResult.items?.map(item => {
+              const product = item.productView;
+              const isComplex = product.__typename === 'Catalog_ComplexProductView';
+              
+              return {
+                id: product.id,
+                name: product.name,
+                sku: product.sku,
+                manufacturer: extractManufacturer(product.attributes),
+                display_price: extractPrice(product),
+                display_currency: isComplex 
+                  ? product.priceRange?.minimum?.final?.amount?.currency || 'USD'
+                  : product.price?.final?.amount?.currency || 'USD',
+                is_on_sale: isComplex
+                  ? calculateIsOnSale(
+                      product.priceRange?.minimum?.regular?.amount?.value,
+                      product.priceRange?.minimum?.final?.amount?.value
+                    )
+                  : calculateIsOnSale(
+                      product.price?.regular?.amount?.value,
+                      product.price?.final?.amount?.value
+                    ),
+                discount_percentage: isComplex
+                  ? calculateDiscountPercentage(
+                      product.priceRange?.minimum?.regular?.amount?.value,
+                      product.priceRange?.minimum?.final?.amount?.value
+                    )
+                  : calculateDiscountPercentage(
+                      product.price?.regular?.amount?.value,
+                      product.price?.final?.amount?.value
+                    ),
+                in_stock: product.inStock || false,
+                images: product.images || [],
+                specifications: product.attributes?.map(attr => ({
+                  name: attr.label || attr.name || '',
+                  value: attr.value || ''
+                })) || [],
+                // Complex product specific fields
+                memory_options: isComplex ? extractMemoryOptions(product.options) : [],
+                available_colors: isComplex ? extractColorOptions(product.options) : [],
+                formatted_options: isComplex && product.options ? 
+                  product.options.map(option => ({
+                    id: option.id,
+                    title: option.title,
+                    required: option.required || false,
+                    values: option.values?.map(v => ({
+                      id: v.id,
+                      title: v.title,
+                      value: v.value || null
+                    })) || []
+                  })) : []
+              };
+            }) || [];
+
             return {
-              items: searchResult.items?.map(item => ({
-                product: item.productView
-              })) || [],
-              total: searchResult.total_count || 0,
+              items,
+              total_count: searchResult.total_count || 0,
               page_info: searchResult.page_info || {
                 current_page: args.page || 1,
                 page_size: args.limit || 20,
@@ -151,11 +261,11 @@ module.exports = {
               }
             };
           } catch (error) {
-            console.error('Products query error:', error);
+            console.error('ProductCards query error:', error);
             // Return empty result on error
             return {
               items: [],
-              total: 0,
+              total_count: 0,
               page_info: {
                 current_page: args.page || 1,
                 page_size: args.limit || 20,
@@ -178,22 +288,13 @@ module.exports = {
       memory_options: {
         selectionSet: '{ options { title values { ... on Catalog_ProductViewOptionValueSwatch { title value } } } }',
         resolve: (root, args, context, info) => {
-          if (!root.options) return [];
-          
-          const memoryOption = root.options.find(opt => opt.title === 'Memory');
-          return memoryOption?.values?.map(v => v.title) || [];
+          return extractMemoryOptions(root.options);
         }
       },
       available_colors: {
         selectionSet: '{ options { title values { ... on Catalog_ProductViewOptionValueSwatch { title value } } } }',
         resolve: (root, args, context, info) => {
-          if (!root.options) return [];
-          
-          const colorOption = root.options.find(opt => opt.title === 'Color');
-          return colorOption?.values?.map(v => ({
-            name: v.title,
-            hex: v.value || '#000000'
-          })) || [];
+          return extractColorOptions(root.options);
         }
       },
       is_on_sale: {
