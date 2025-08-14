@@ -50,7 +50,9 @@
           }
         ],
         "responseConfig": {
-          "headers": ["X-Magento-Cache-Id"]
+          "headers": [
+            "X-Magento-Cache-Id"
+          ]
         }
       },
       {
@@ -64,9 +66,11 @@
               "Magento-Website-Code": "{context.headers['magento-website-code']}",
               "Magento-Store-View-Code": "{context.headers['magento-store-view-code']}",
               "Magento-Store-Code": "{context.headers['magento-store-code']}",
+              "Magento-Customer-Group": "{context.headers['magento-customer-group']}",
               "X-Api-Key": "search_gql"
             },
             "schemaHeaders": {
+              "x-api-key": "{env.ADOBE_SANDBOX_CATALOG_API_KEY}",
               "Magento-Environment-Id": "{env.ADOBE_COMMERCE_ENVIRONMENT_ID}",
               "Magento-Website-Code": "{env.ADOBE_COMMERCE_WEBSITE_CODE}",
               "Magento-Store-View-Code": "{env.ADOBE_COMMERCE_STORE_VIEW_CODE}",
@@ -96,22 +100,25 @@
         }
       }
     ],
-    "additionalTypeDefs": "extend type Catalog_ComplexProductView { manufacturer: String memory_options: [String] available_colors: [ColorOption] formatted_options: [ProductOption] is_on_sale: Boolean display_price: Float display_currency: String discount_percentage: Float in_stock: Boolean specifications: [Specification] } extend type Catalog_SimpleProductView { manufacturer: String is_on_sale: Boolean display_price: Float display_currency: String discount_percentage: Float in_stock: Boolean specifications: [Specification] } type ColorOption { name: String hex: String } type ProductOption { id: String title: String required: Boolean values: [OptionValue] } type OptionValue { id: String title: String value: String } type Specification { name: String value: String } type PageInfo { current_page: Int page_size: Int total_pages: Int } type ProductCard { id: String name: String sku: String manufacturer: String display_price: Float display_currency: String is_on_sale: Boolean discount_percentage: Float in_stock: Boolean images: [Catalog_ProductImage] specifications: [Specification] memory_options: [String] available_colors: [ColorOption] formatted_options: [ProductOption] } type ProductCardResult { items: [ProductCard] total_count: Int page_info: PageInfo } input Citisignal_ProductFilter { category: String manufacturer: String price_min: Float price_max: Float in_stock_only: Boolean on_sale_only: Boolean } extend type Query { Citisignal_productCards(phrase: String, filter: Citisignal_ProductFilter, limit: Int = 20, page: Int = 1): ProductCardResult }",
-    "additionalResolvers": ["./resolvers.js"],
+    "additionalTypeDefs": "# Custom type extensions for Adobe API Mesh\n# These types extend the native Catalog Service types with computed fields\n\n# Extensions to existing Catalog Service types\nextend type Catalog_ComplexProductView {\n  manufacturer: String\n  memory_options: [String]\n  available_colors: [ColorOption]\n  formatted_options: [ProductOption]\n  is_on_sale: Boolean\n  display_price: Float\n  display_currency: String\n  discount_percentage: Float\n  in_stock: Boolean\n  specifications: [Specification]\n}\n\nextend type Catalog_SimpleProductView {\n  manufacturer: String\n  is_on_sale: Boolean\n  display_price: Float\n  display_currency: String\n  discount_percentage: Float\n  in_stock: Boolean\n  specifications: [Specification]\n}\n\n# Custom types for enhanced product data\ntype ColorOption {\n  name: String\n  hex: String\n}\n\ntype ProductOption {\n  id: String\n  title: String\n  required: Boolean\n  values: [OptionValue]\n}\n\ntype OptionValue {\n  id: String\n  title: String\n  value: String\n}\n\ntype Specification {\n  name: String\n  value: String\n}\n\n# Pagination support\ntype PageInfo {\n  current_page: Int\n  page_size: Int\n  total_pages: Int\n}\n\n# Product card type for listing pages\ntype ProductCard {\n  id: String\n  name: String\n  sku: String\n  manufacturer: String\n  display_price: Float\n  display_currency: String\n  is_on_sale: Boolean\n  discount_percentage: Float\n  in_stock: Boolean\n  image_url: String\n  specifications: [Specification]\n  memory_options: [String]\n  available_colors: [ColorOption]\n}\n\ntype ProductCardResult {\n  items: [ProductCard]\n  total_count: Int\n  page_info: PageInfo\n}\n\n# Custom filter input for simplified searching\ninput Citisignal_ProductFilter {\n  category: String\n  manufacturer: String\n  price_min: Float\n  price_max: Float\n  in_stock_only: Boolean\n  on_sale_only: Boolean\n}\n\n# Custom queries\nextend type Query {\n  Citisignal_productCards(\n    phrase: String\n    filter: Citisignal_ProductFilter\n    limit: Int = 20\n    page: Int = 1\n  ): ProductCardResult\n}",
+    "additionalResolvers": [
+      "./resolvers.js"
+    ],
     "responseConfig": {
       "CORS": {
         "credentials": true,
-        "exposedHeaders": ["Content-Range", "X-Content-Range", "X-Magento-Cache-Id"],
+        "exposedHeaders": [
+          "Content-Range",
+          "X-Content-Range",
+          "X-Magento-Cache-Id"
+        ],
         "maxAge": 60480,
-        "methods": ["GET", "POST"],
+        "methods": [
+          "GET",
+          "POST"
+        ],
         "origin": "*"
-      },
-      "headers": {
-        "mode": "no-cors",
-        "x-include-metadata": "true"
-      },
-      "includeHTTPDetails": false,
-      "cache": true
+      }
     }
   }
 }

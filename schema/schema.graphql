@@ -1,0 +1,100 @@
+# Custom type extensions for Adobe API Mesh
+# These types extend the native Catalog Service types with computed fields
+
+# Extensions to existing Catalog Service types
+extend type Catalog_ComplexProductView {
+  manufacturer: String
+  memory_options: [String]
+  available_colors: [ColorOption]
+  formatted_options: [ProductOption]
+  is_on_sale: Boolean
+  display_price: Float
+  display_currency: String
+  discount_percentage: Float
+  in_stock: Boolean
+  specifications: [Specification]
+}
+
+extend type Catalog_SimpleProductView {
+  manufacturer: String
+  is_on_sale: Boolean
+  display_price: Float
+  display_currency: String
+  discount_percentage: Float
+  in_stock: Boolean
+  specifications: [Specification]
+}
+
+# Custom types for enhanced product data
+type ColorOption {
+  name: String
+  hex: String
+}
+
+type ProductOption {
+  id: String
+  title: String
+  required: Boolean
+  values: [OptionValue]
+}
+
+type OptionValue {
+  id: String
+  title: String
+  value: String
+}
+
+type Specification {
+  name: String
+  value: String
+}
+
+# Pagination support
+type PageInfo {
+  current_page: Int
+  page_size: Int
+  total_pages: Int
+}
+
+# Product card type for listing pages
+type ProductCard {
+  id: String
+  name: String
+  sku: String
+  manufacturer: String
+  display_price: Float
+  display_currency: String
+  is_on_sale: Boolean
+  discount_percentage: Float
+  in_stock: Boolean
+  image_url: String
+  specifications: [Specification]
+  memory_options: [String]
+  available_colors: [ColorOption]
+}
+
+type ProductCardResult {
+  items: [ProductCard]
+  total_count: Int
+  page_info: PageInfo
+}
+
+# Custom filter input for simplified searching
+input Citisignal_ProductFilter {
+  category: String
+  manufacturer: String
+  price_min: Float
+  price_max: Float
+  in_stock_only: Boolean
+  on_sale_only: Boolean
+}
+
+# Custom queries
+extend type Query {
+  Citisignal_productCards(
+    phrase: String
+    filter: Citisignal_ProductFilter
+    limit: Int = 20
+    page: Int = 1
+  ): ProductCardResult
+}

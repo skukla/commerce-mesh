@@ -4,15 +4,16 @@
   "private": true,
   "description": "Adobe API Mesh for Commerce with enhanced product resolvers",
   "dependencies": {
-    "dotenv": "^17.2.0"
+    "dotenv": "^17.2.1"
   },
   "devDependencies": {
     "@adobe/aio-cli": "^10.0.0"
   },
   "scripts": {
-    "create": "aio api-mesh:create",
-    "update": "node scripts/update-mesh.js",
-    "update:prod": "node scripts/update-mesh.js --prod",
+    "build": "node scripts/build-mesh.js",
+    "create": "npm run build && aio api-mesh:create mesh.json",
+    "update": "npm run build && node scripts/update-mesh.js",
+    "update:prod": "npm run build && node scripts/update-mesh.js --prod",
     "status": "aio api-mesh:status",
     "describe": "aio api-mesh:describe"
   },

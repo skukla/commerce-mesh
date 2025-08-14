@@ -42,3 +42,8 @@ logs
 
 # Workspace
 workspace.json
+
+# Mesh deployment tracking
+.mesh-build-hash
+.mesh-deploy-hash
+.mesh-deploy-hash-prod
