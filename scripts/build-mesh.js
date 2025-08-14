@@ -57,7 +57,8 @@ function getMeshSourceHash() {
     const sourceFiles = [
       'mesh.config.js',
       'schema/schema.graphql',
-      'resolvers.js'
+      'resolvers.js',
+      'utils.js'
     ];
 
     let combinedContent = '';

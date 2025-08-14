@@ -5,6 +5,10 @@ const path = require('path');
 const schemaPath = path.join(__dirname, 'schema', 'schema.graphql');
 const additionalTypeDefs = fs.readFileSync(schemaPath, 'utf8');
 
+// Load helpers file content
+const utilsPath = path.join(__dirname, 'utils.js');
+const utilsContent = fs.readFileSync(utilsPath, 'utf8');
+
 // Load environment variables
 require('dotenv').config();
 
@@ -110,6 +114,12 @@ module.exports = {
     ],
     additionalTypeDefs,
     additionalResolvers: ["./resolvers.js"],
+    files: [
+      {
+        path: "./utils.js",
+        content: utilsContent
+      }
+    ],
     responseConfig: {
       CORS: {
         credentials: true,
