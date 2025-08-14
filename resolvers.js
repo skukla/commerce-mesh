@@ -4,14 +4,24 @@
  */
 
 // Helper functions (must be inline)
-const extractManufacturer = (attributes) => {
-  if (!attributes) return 'CitiSignal';
+const cleanAttributeName = (name) => {
+  if (!name) return '';
+  // Remove cs_ prefix if present
+  return name.startsWith('cs_') ? name.substring(3) : name;
+};
+
+const extractAttributeValue = (attributes, attributeName, defaultValue = '') => {
+  if (!attributes || !Array.isArray(attributes)) return defaultValue;
   
-  const manufacturerAttr = attributes.find(attr => 
-    attr.name === 'cs_manufacturer' || attr.name === 'manufacturer'
+  // Look for both cs_ prefixed and clean versions
+  const csName = `cs_${attributeName}`;
+  const attr = attributes.find(a => 
+    a.name === attributeName || 
+    a.name === csName ||
+    cleanAttributeName(a.name) === attributeName
   );
   
-  return manufacturerAttr?.value || 'CitiSignal';
+  return attr?.value || defaultValue;
 };
 
 const extractPrice = (product) => {
@@ -21,26 +31,77 @@ const extractPrice = (product) => {
     : product.price?.final?.amount?.value;
 };
 
+const extractCurrency = (product) => {
+  const isComplex = product.__typename === 'Catalog_ComplexProductView';
+  return isComplex 
+    ? product.priceRange?.minimum?.final?.amount?.currency || 'USD'
+    : product.price?.final?.amount?.currency || 'USD';
+};
+
+const extractRegularPrice = (product) => {
+  const isComplex = product.__typename === 'Catalog_ComplexProductView';
+  return isComplex 
+    ? product.priceRange?.minimum?.regular?.amount?.value
+    : product.price?.regular?.amount?.value;
+};
+
+const extractFinalPrice = (product) => {
+  const isComplex = product.__typename === 'Catalog_ComplexProductView';
+  return isComplex 
+    ? product.priceRange?.minimum?.final?.amount?.value
+    : product.price?.final?.amount?.value;
+};
+
+const isProductOnSale = (product) => {
+  const regular = extractRegularPrice(product);
+  const final = extractFinalPrice(product);
+  return isOnSale(regular, final);
+};
+
+const getProductDiscountPercentage = (product) => {
+  const regular = extractRegularPrice(product);
+  const final = extractFinalPrice(product);
+  return calculateDiscountPercentage(regular, final);
+};
+
+const extractSpecifications = (attributes) => {
+  if (!attributes) return [];
+  return attributes.map(attr => ({
+    name: attr.label || cleanAttributeName(attr.name),
+    value: attr.value
+  }));
+};
+
+const extractOptionByTitle = (options, title) => {
+  if (!options) return null;
+  return options.find(opt => opt.title === title);
+};
+
 const extractMemoryOptions = (options) => {
-  if (!options) return [];
-  const memoryOption = options.find(opt => opt.title === 'Memory');
+  const memoryOption = extractOptionByTitle(options, 'Memory');
   return memoryOption?.values?.map(v => v.title) || [];
 };
 
 const extractColorOptions = (options) => {
-  if (!options) return [];
-  const colorOption = options.find(opt => opt.title === 'Color');
+  const colorOption = extractOptionByTitle(options, 'Color');
   return colorOption?.values?.map(v => ({
     name: v.title,
     hex: v.value || '#000000'
   })) || [];
 };
 
-const extractPrimaryImage = (images) => {
-  return images?.[0]?.url || null;
+const extractImageUrl = (images) => {
+  if (!images || !Array.isArray(images) || images.length === 0) return '';
+  
+  // First try to find an image with 'small' role
+  const smallImage = images.find(img => img.roles?.includes('small'));
+  if (smallImage?.url) return smallImage.url;
+  
+  // Fallback to first image if no small image found
+  return images[0]?.url || '';
 };
 
-const calculateIsOnSale = (regularPrice, finalPrice) => {
+const isOnSale = (regularPrice, finalPrice) => {
   return finalPrice < regularPrice;
 };
 
@@ -52,6 +113,45 @@ const calculateDiscountPercentage = (regularPrice, finalPrice) => {
   return Math.round(discount * 10) / 10; // Round to 1 decimal place
 };
 
+const buildCatalogFilters = (filter) => {
+  if (!filter) return [];
+  
+  const catalogFilters = [];
+  
+  if (filter.category) {
+    catalogFilters.push({
+      attribute: 'categoryPath',
+      in: [filter.category]
+    });
+  }
+  
+  if (filter.manufacturer) {
+    catalogFilters.push({
+      attribute: 'cs_manufacturer',
+      in: [filter.manufacturer]
+    });
+  }
+  
+  if (filter.price_min !== undefined || filter.price_max !== undefined) {
+    catalogFilters.push({
+      attribute: 'price',
+      range: {
+        from: filter.price_min || 0,
+        to: filter.price_max || 999999
+      }
+    });
+  }
+  
+  if (filter.in_stock_only) {
+    catalogFilters.push({
+      attribute: 'inStock',
+      eq: 'true'
+    });
+  }
+  
+  return catalogFilters;
+};
+
 // Minimal query for product cards (listing pages)
 const PRODUCT_CARD_QUERY = `{
   items {
@@ -61,9 +161,10 @@ const PRODUCT_CARD_QUERY = `{
       name
       sku
       inStock
-      images(roles: ["image"]) {
+      images(roles: ["small"]) {
         url
         label
+        roles
       }
       ... on Catalog_SimpleProductView {
         price {
@@ -138,37 +239,7 @@ module.exports = {
         resolve: async (root, args, context, info) => {
           try {
             // Transform our simplified filter to Catalog format
-            const catalogFilters = [];
-            if (args.filter) {
-              if (args.filter.category) {
-                catalogFilters.push({
-                  attribute: 'categoryPath',
-                  in: [args.filter.category]
-                });
-              }
-              if (args.filter.manufacturer) {
-                catalogFilters.push({
-                  attribute: 'manufacturer',
-                  eq: args.filter.manufacturer
-                });
-              }
-              if (args.filter.price_min !== undefined || args.filter.price_max !== undefined) {
-                catalogFilters.push({
-                  attribute: 'price',
-                  range: {
-                    from: args.filter.price_min || 0,
-                    to: args.filter.price_max || 999999
-                  }
-                });
-              }
-              if (args.filter.in_stock_only) {
-                catalogFilters.push({
-                  attribute: 'inStock',
-                  eq: 'true'
-                });
-              }
-              // Note: on_sale_only would need custom logic since it's computed
-            }
+            const catalogFilters = buildCatalogFilters(args.filter);
             
             // Call the Catalog service with minimal query
             const searchResult = await context.CatalogServiceSandbox.Query.Catalog_productSearch({
@@ -183,21 +254,8 @@ module.exports = {
               selectionSet: PRODUCT_CARD_QUERY
             });
 
-            // If no result, return empty response
-            if (!searchResult) {
-              return {
-                items: [],
-                total_count: 0,
-                page_info: {
-                  current_page: args.page || 1,
-                  page_size: args.limit || 20,
-                  total_pages: 0
-                }
-              };
-            }
-
             // Transform items to ProductCard type with flattened structure
-            const items = searchResult.items?.map(item => {
+            const items = searchResult.items.map(item => {
               const product = item.productView;
               const isComplex = product.__typename === 'Catalog_ComplexProductView';
               
@@ -205,73 +263,28 @@ module.exports = {
                 id: product.id,
                 name: product.name,
                 sku: product.sku,
-                manufacturer: extractManufacturer(product.attributes),
+                manufacturer: extractAttributeValue(product.attributes, 'manufacturer', 'CitiSignal'),
                 display_price: extractPrice(product),
-                display_currency: isComplex 
-                  ? product.priceRange?.minimum?.final?.amount?.currency || 'USD'
-                  : product.price?.final?.amount?.currency || 'USD',
-                is_on_sale: isComplex
-                  ? calculateIsOnSale(
-                      product.priceRange?.minimum?.regular?.amount?.value,
-                      product.priceRange?.minimum?.final?.amount?.value
-                    )
-                  : calculateIsOnSale(
-                      product.price?.regular?.amount?.value,
-                      product.price?.final?.amount?.value
-                    ),
-                discount_percentage: isComplex
-                  ? calculateDiscountPercentage(
-                      product.priceRange?.minimum?.regular?.amount?.value,
-                      product.priceRange?.minimum?.final?.amount?.value
-                    )
-                  : calculateDiscountPercentage(
-                      product.price?.regular?.amount?.value,
-                      product.price?.final?.amount?.value
-                    ),
-                in_stock: product.inStock || false,
-                images: product.images || [],
-                specifications: product.attributes?.map(attr => ({
-                  name: attr.label || attr.name || '',
-                  value: attr.value || ''
-                })) || [],
+                display_currency: extractCurrency(product),
+                is_on_sale: isProductOnSale(product),
+                discount_percentage: getProductDiscountPercentage(product),
+                in_stock: product.inStock,
+                image_url: extractImageUrl(product.images),
+                specifications: extractSpecifications(product.attributes),
                 // Complex product specific fields
                 memory_options: isComplex ? extractMemoryOptions(product.options) : [],
                 available_colors: isComplex ? extractColorOptions(product.options) : [],
-                formatted_options: isComplex && product.options ? 
-                  product.options.map(option => ({
-                    id: option.id,
-                    title: option.title,
-                    required: option.required || false,
-                    values: option.values?.map(v => ({
-                      id: v.id,
-                      title: v.title,
-                      value: v.value || null
-                    })) || []
-                  })) : []
               };
-            }) || [];
-
+            });
+            
             return {
               items,
-              total_count: searchResult.total_count || 0,
-              page_info: searchResult.page_info || {
-                current_page: args.page || 1,
-                page_size: args.limit || 20,
-                total_pages: 0
-              }
+              total_count: searchResult.total_count,
+              page_info: searchResult.page_info
             };
           } catch (error) {
             console.error('ProductCards query error:', error);
-            // Return empty result on error
-            return {
-              items: [],
-              total_count: 0,
-              page_info: {
-                current_page: args.page || 1,
-                page_size: args.limit || 20,
-                total_pages: 0
-              }
-            };
+            throw error;
           }
         }
       }
@@ -282,7 +295,7 @@ module.exports = {
       manufacturer: {
         selectionSet: '{ attributes { name value } }',
         resolve: (root, args, context, info) => {
-          return extractManufacturer(root.attributes);
+          return extractAttributeValue(root.attributes, 'manufacturer', 'CitiSignal');
         }
       },
       memory_options: {
@@ -304,7 +317,7 @@ module.exports = {
           
           const regular = root.priceRange.minimum.regular.amount.value;
           const final = root.priceRange.minimum.final.amount.value;
-          return calculateIsOnSale(regular, final);
+          return isOnSale(regular, final);
         }
       },
       display_price: {
@@ -341,7 +354,7 @@ module.exports = {
           if (!root.attributes) return [];
           
           return root.attributes.map(attr => ({
-            name: attr.label || attr.name || '',
+            name: attr.label || cleanAttributeName(attr.name) || '',
             value: attr.value || ''
           }));
         }
@@ -370,7 +383,7 @@ module.exports = {
       manufacturer: {
         selectionSet: '{ attributes { name value } }',
         resolve: (root, args, context, info) => {
-          return extractManufacturer(root.attributes);
+          return extractAttributeValue(root.attributes, 'manufacturer', 'CitiSignal');
         }
       },
       is_on_sale: {
@@ -380,7 +393,7 @@ module.exports = {
           
           const regular = root.price.regular.amount.value;
           const final = root.price.final.amount.value;
-          return calculateIsOnSale(regular, final);
+          return isOnSale(regular, final);
         }
       },
       display_price: {
@@ -417,7 +430,7 @@ module.exports = {
           if (!root.attributes) return [];
           
           return root.attributes.map(attr => ({
-            name: attr.label || attr.name || '',
+            name: attr.label || cleanAttributeName(attr.name) || '',
             value: attr.value || ''
           }));
         }
