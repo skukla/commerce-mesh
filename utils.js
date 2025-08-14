@@ -145,3 +145,22 @@ const cleanAttributeName = (name) => {
     
     return catalogFilters;
   };
+
+module.exports = {
+  cleanAttributeName,
+  extractAttributeValue,
+  extractPrice,
+  extractCurrency,
+  extractRegularPrice,
+  extractFinalPrice,
+  isProductOnSale,
+  getProductDiscountPercentage,
+  extractSpecifications,
+  extractOptionByTitle,
+  extractMemoryOptions,
+  extractColorOptions,
+  extractImageUrl,
+  isOnSale,
+  calculateDiscountPercentage,
+  buildCatalogFilters
+};

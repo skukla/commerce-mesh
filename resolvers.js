@@ -3,6 +3,26 @@
  * Adds fields to existing Catalog Service types and simplified product queries
  */
 
+// Import helper functions
+const {
+  cleanAttributeName,
+  extractAttributeValue,
+  extractPrice,
+  extractCurrency,
+  extractRegularPrice,
+  extractFinalPrice,
+  isProductOnSale,
+  getProductDiscountPercentage,
+  extractSpecifications,
+  extractOptionByTitle,
+  extractMemoryOptions,
+  extractColorOptions,
+  extractImageUrl,
+  isOnSale,
+  calculateDiscountPercentage,
+  buildCatalogFilters
+} = require('./utils');
+
 // Minimal query for product cards (listing pages)
 const PRODUCT_CARD_QUERY = `{
   items {
