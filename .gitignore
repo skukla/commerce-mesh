@@ -47,3 +47,6 @@ workspace.json
 .mesh-build-hash
 .mesh-deploy-hash
 .mesh-deploy-hash-prod
+
+# fnm
+.node-version

@@ -242,10 +242,10 @@ module.exports = {
               const finalPrice = extractFinalPrice(product);
               const onSale = isOnSale(regularPrice, finalPrice);
               
-              // Transform image URL to HTTPS
+              // Transform image URL to HTTPS and rename label to altText
               const image = product.images?.[0] ? {
-                ...product.images[0],
-                url: ensureHttpsUrl(product.images[0].url)
+                url: ensureHttpsUrl(product.images[0].url),
+                altText: product.images[0].label || product.name
               } : null;
               
               return {

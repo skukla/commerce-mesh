@@ -11,7 +11,7 @@ type ColorOption {
 
 type ProductImage {
   url: String
-  label: String
+  altText: String
 }
 
 # Product card type for listing pages
