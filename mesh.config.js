@@ -1,10 +1,3 @@
-const fs = require('fs');
-const path = require('path');
-
-// Load GraphQL schema types
-const schemaPath = path.join(__dirname, 'schema', 'schema.graphql');
-const additionalTypeDefs = fs.readFileSync(schemaPath, 'utf8');
-
 // Load environment variables
 require('dotenv').config();
 
@@ -108,8 +101,11 @@ module.exports = {
         }
       }
     ],
-    additionalTypeDefs,
-    additionalResolvers: ["./resolvers.js"],
+    // additionalTypeDefs will be added by build script
+    additionalResolvers: [
+      "./resolvers/product-queries.js",
+      "./resolvers/field-extensions.js"
+    ],
     responseConfig: {
       CORS: {
         credentials: true,

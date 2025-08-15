@@ -1,0 +1,59 @@
+# Custom Queries and Types
+#
+# Our custom GraphQL queries and the types they use
+# These provide simplified, frontend-friendly interfaces
+
+# Shared types used by our queries
+type ColorOption {
+  name: String
+  hex: String
+}
+
+type ProductImage {
+  url: String
+  label: String
+}
+
+# Product card type for listing pages
+type ProductCard {
+  id: String!
+  sku: String!
+  urlKey: String!
+  name: String!
+  manufacturer: String
+  price: String!
+  originalPrice: String
+  discountPercent: Int
+  inStock: Boolean!
+  image: ProductImage     
+  memory: [String]   
+  colors: [ColorOption]
+}
+
+# Product search result with pagination
+type ProductCardResult {
+  items: [ProductCard]
+  totalCount: Int
+  hasMoreItems: Boolean!
+  currentPage: Int
+}
+
+# Filter input for product searches
+input Citisignal_ProductFilter {
+  category: String
+  manufacturer: String
+  priceMin: Float
+  priceMax: Float
+  inStockOnly: Boolean
+  onSaleOnly: Boolean
+}
+
+# Custom queries
+extend type Query {
+  Citisignal_productCards(
+    phrase: String
+    filter: Citisignal_ProductFilter
+    limit: Int = 20
+    page: Int = 1
+  ): ProductCardResult
+}

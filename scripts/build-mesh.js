@@ -50,14 +50,48 @@ const format = {
 };
 
 /**
+ * Combine GraphQL schema files into a single string
+ */
+function combineSchemaFiles() {
+  const schemaDir = path.join(__dirname, '..', 'schema');
+  const schemaFiles = [
+    'queries.graphql',
+    'extensions.graphql'
+  ];
+  
+  let combinedSchema = '';
+  
+  for (const file of schemaFiles) {
+    const filePath = path.join(schemaDir, file);
+    if (fs.existsSync(filePath)) {
+      const content = fs.readFileSync(filePath, 'utf8');
+      // Remove comments for cleaner output
+      const cleanContent = content
+        .split('\n')
+        .filter(line => !line.trim().startsWith('#'))
+        .join('\n')
+        .trim();
+      
+      if (cleanContent) {
+        combinedSchema += cleanContent + '\n\n';
+      }
+    }
+  }
+  
+  return combinedSchema.trim();
+}
+
+/**
  * Get hash of source files to detect changes
  */
 function getMeshSourceHash() {
   try {
     const sourceFiles = [
       'mesh.config.js',
-      'schema/schema.graphql',
-      'resolvers.js'
+      'schema/queries.graphql',
+      'schema/extensions.graphql',
+      'resolvers/product-queries.js',
+      'resolvers/field-extensions.js'
     ];
 
     let combinedContent = '';
@@ -136,6 +170,13 @@ async function generateMeshConfig() {
       throw new Error('mesh.config.js must export a meshConfig object');
     }
 
+    // Combine schema files
+    spinner.text = format.muted('Combining GraphQL schema files');
+    const combinedSchema = combineSchemaFiles();
+    
+    // Add the combined schema to the config
+    meshConfig.meshConfig.additionalTypeDefs = combinedSchema;
+
     // Write the configuration to mesh.json
     const meshJsonPath = path.join(__dirname, '..', 'mesh.json');
     fs.writeFileSync(
@@ -150,6 +191,7 @@ async function generateMeshConfig() {
 
     spinner.stop();
     console.log(format.success('Mesh configuration generated (mesh.json)'));
+    console.log(format.muted(`  - Combined ${combinedSchema.split('\n').length} lines of GraphQL schema`));
     
     return true;
   } catch (error) {

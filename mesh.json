@@ -100,9 +100,9 @@
         }
       }
     ],
-    "additionalTypeDefs": "# Custom type extensions for Adobe API Mesh\n# These types extend the native Catalog Service types with computed fields\n\n# Extensions to existing Catalog Service types\nextend type Catalog_ComplexProductView {\n  manufacturer: String\n  memory_options: [String]\n  available_colors: [ColorOption]\n  formatted_options: [ProductOption]\n  is_on_sale: Boolean\n  display_price: Float\n  display_currency: String\n  discount_percentage: Float\n  in_stock: Boolean\n  specifications: [Specification]\n}\n\nextend type Catalog_SimpleProductView {\n  manufacturer: String\n  is_on_sale: Boolean\n  display_price: Float\n  display_currency: String\n  discount_percentage: Float\n  in_stock: Boolean\n  specifications: [Specification]\n}\n\n# Custom types for enhanced product data\ntype ColorOption {\n  name: String\n  hex: String\n}\n\ntype ProductOption {\n  id: String\n  title: String\n  required: Boolean\n  values: [OptionValue]\n}\n\ntype OptionValue {\n  id: String\n  title: String\n  value: String\n}\n\ntype Specification {\n  name: String\n  value: String\n}\n\n# Pagination support\ntype PageInfo {\n  current_page: Int\n  page_size: Int\n  total_pages: Int\n}\n\n# Product card type for listing pages\ntype ProductCard {\n  id: String\n  name: String\n  sku: String\n  manufacturer: String\n  display_price: Float\n  display_currency: String\n  is_on_sale: Boolean\n  discount_percentage: Float\n  in_stock: Boolean\n  image_url: String\n  specifications: [Specification]\n  memory_options: [String]\n  available_colors: [ColorOption]\n}\n\ntype ProductCardResult {\n  items: [ProductCard]\n  total_count: Int\n  page_info: PageInfo\n}\n\n# Custom filter input for simplified searching\ninput Citisignal_ProductFilter {\n  category: String\n  manufacturer: String\n  price_min: Float\n  price_max: Float\n  in_stock_only: Boolean\n  on_sale_only: Boolean\n}\n\n# Custom queries\nextend type Query {\n  Citisignal_productCards(\n    phrase: String\n    filter: Citisignal_ProductFilter\n    limit: Int = 20\n    page: Int = 1\n  ): ProductCardResult\n}",
     "additionalResolvers": [
-      "./resolvers.js"
+      "./resolvers/product-queries.js",
+      "./resolvers/field-extensions.js"
     ],
     "responseConfig": {
       "CORS": {
@@ -119,6 +119,7 @@
         ],
         "origin": "*"
       }
-    }
+    },
+    "additionalTypeDefs": "type ColorOption {\n  name: String\n  hex: String\n}\n\ntype ProductImage {\n  url: String\n  label: String\n}\n\ntype ProductCard {\n  id: String!\n  sku: String!\n  urlKey: String!\n  name: String!\n  manufacturer: String\n  price: String!\n  originalPrice: String\n  discountPercent: Int\n  inStock: Boolean!\n  image: ProductImage     \n  memory: [String]   \n  colors: [ColorOption]\n}\n\ntype ProductCardResult {\n  items: [ProductCard]\n  totalCount: Int\n  hasMoreItems: Boolean!\n  currentPage: Int\n}\n\ninput Citisignal_ProductFilter {\n  category: String\n  manufacturer: String\n  priceMin: Float\n  priceMax: Float\n  inStockOnly: Boolean\n  onSaleOnly: Boolean\n}\n\nextend type Query {\n  Citisignal_productCards(\n    phrase: String\n    filter: Citisignal_ProductFilter\n    limit: Int = 20\n    page: Int = 1\n  ): ProductCardResult\n}\n\nextend type Catalog_ComplexProductView {\n  manufacturer: String\n  memory_options: [String]\n  available_colors: [ColorOption]\n  is_on_sale: Boolean\n  display_price: Float\n  display_currency: String\n  discount_percentage: Float\n  in_stock: Boolean\n  secure_image: Catalog_ProductViewImage\n  secure_images: [Catalog_ProductViewImage]\n}\n\nextend type Catalog_SimpleProductView {\n  manufacturer: String\n  is_on_sale: Boolean\n  display_price: Float\n  display_currency: String\n  discount_percentage: Float\n  in_stock: Boolean\n  secure_image: Catalog_ProductViewImage\n  secure_images: [Catalog_ProductViewImage]\n}"
   }
 }
