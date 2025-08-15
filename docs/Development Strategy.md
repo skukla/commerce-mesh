@@ -155,3 +155,200 @@ The mesh federates three main sources:
 - [Adobe API Mesh Documentation](https://developer.adobe.com/graphql-mesh-gateway/)
 - [Adobe Commerce GraphQL](https://developer.adobe.com/commerce/webapi/graphql/)
 - [Adobe App Builder Docs](https://developer.adobe.com/app-builder/docs/)
+
+## Key Learnings & Best Practices
+
+### Resolver Architecture Deep Dive
+
+#### Two-Part Resolver Strategy
+After extensive testing, we've established a clear separation of concerns:
+
+1. **Field Extensions** (`resolvers/field-extensions.js`)
+   - Purpose: Add computed fields to native Adobe Catalog Service types
+   - Examples: `manufacturer`, `is_on_sale`, `discount_percentage`, `secure_image`
+   - Key Learning: **Cannot override existing native fields** - attempting this causes 500 errors
+   - Solution: Create new fields with different names (e.g., `secure_image` instead of modifying `image`)
+
+2. **Custom Queries** (`resolvers/product-queries.js`)
+   - Purpose: Create entirely new query endpoints with full control over response shape
+   - Examples: `Citisignal_productCards` for optimized listing pages
+   - Advantage: Can transform any data including native fields (like converting HTTP to HTTPS)
+   - Use Case: When you need a different data structure than native queries provide
+
+#### Critical Limitations Discovered
+
+**Field Override Restriction**
+```javascript
+// ❌ THIS WILL CAUSE 500 ERROR
+Catalog_SimpleProductView: {
+  image: { // Trying to override native field
+    resolve: (root) => transformImage(root.image)
+  }
+}
+
+// ✅ THIS WORKS
+Catalog_SimpleProductView: {
+  secure_image: { // New field name
+    resolve: (root) => transformImage(root.image)
+  }
+}
+```
+
+**Self-Contained Code Requirement**
+- All helper functions must be duplicated in each resolver file
+- Cannot use `require()` or `import` statements
+- No access to npm packages
+- Solution: Keep a library of helper functions to copy-paste
+
+### Image URL Transformation Strategy
+
+#### The Problem
+Adobe Commerce returns HTTP URLs but production requires HTTPS
+
+#### Solutions Implemented
+1. **Custom Query Approach** (Recommended for new queries)
+   ```javascript
+   // In product-queries.js
+   const image = product.images?.[0] ? {
+     ...product.images[0],
+     url: ensureHttpsUrl(product.images[0].url)
+   } : null;
+   ```
+
+2. **Secure Field Approach** (For native queries)
+   ```javascript
+   // In field-extensions.js
+   secure_image: {
+     selectionSet: '{ images(roles: ["small_image"]) { url label } }',
+     resolve: (root) => ({
+       ...root.images[0],
+       url: ensureHttpsUrl(root.images[0].url)
+     })
+   }
+   ```
+
+### Schema Organization
+
+#### Current Structure (Improved)
+```
+schema/
+├── queries.graphql      # Custom query definitions
+└── extensions.graphql   # Type extensions for native types
+```
+
+#### Build Process
+The `build-mesh.js` script:
+1. Combines all `.graphql` files in schema directory
+2. Removes comments for cleaner output
+3. Generates `mesh.json` with combined schema
+4. Tracks changes via MD5 hash
+
+### Deployment Strategy
+
+#### Build & Deploy Workflow
+```bash
+npm run build   # Generate mesh.json
+npm run update  # Deploy to staging
+npm run update:prod  # Deploy to production
+```
+
+#### Change Detection Issues & Solutions
+- **Problem**: Hash-based detection sometimes misses changes
+- **Solution 1**: Delete `.mesh-build-hash` and `.mesh-deploy-hash`
+- **Solution 2**: Use `--force` flag: `npm run update -- --force`
+- **Best Practice**: Always verify with `npm run status` after deployment
+
+#### Deployment Time Considerations
+- Mesh provisioning takes 2-3 minutes
+- Changes may not be immediately visible
+- Use `npm run status` to confirm provisioning complete
+- Cache purging happens automatically during update
+
+### Testing Strategy
+
+#### Query Testing Workflow
+1. Write query in `queries/` directory for testing
+2. Test with GraphQL playground or Postman
+3. Verify resolver changes with direct API calls
+4. Check both custom queries and field extensions
+
+#### Common Testing Pitfalls
+- Cached responses hiding changes (wait 2-3 minutes or purge cache)
+- Type mismatches between schema and resolvers
+- Missing `selectionSet` in field resolvers
+
+### Performance Optimizations
+
+#### Resolver Best Practices
+1. **Minimize Selection Sets**
+   ```javascript
+   // Only request fields you'll use
+   selectionSet: '{ price { final { amount { value } } } }'
+   ```
+
+2. **Batch Operations**
+   - Use array methods efficiently
+   - Avoid multiple passes over data
+
+3. **Early Returns**
+   ```javascript
+   if (!root.images || root.images.length === 0) return null;
+   ```
+
+### Error Handling
+
+#### Debugging Techniques
+1. **Use context.logger**
+   ```javascript
+   context.logger.info('Debug message', { data: root });
+   ```
+
+2. **Graceful Fallbacks**
+   ```javascript
+   return extractAttributeValue(root.attributes, 'manufacturer', 'Unknown');
+   ```
+
+3. **Type Checking**
+   ```javascript
+   if (!url || typeof url !== 'string') return url;
+   ```
+
+### Maintenance Guidelines
+
+#### Adding New Fields
+1. Add field definition to `schema/extensions.graphql`
+2. Implement resolver in appropriate file
+3. Test with sample query
+4. Update documentation
+5. Deploy with `npm run update`
+
+#### Modifying Existing Resolvers
+1. Make changes in resolver file
+2. Delete hash files if changes aren't detected
+3. Force rebuild: `npm run build -- --force`
+4. Deploy and verify
+
+### Common Gotchas & Solutions
+
+| Issue | Symptom | Solution |
+|-------|---------|----------|
+| Changes not deploying | Old data after update | Delete `.mesh-*-hash` files, use `--force` |
+| 500 errors | "Internal Server Error" | Check for native field override attempts |
+| Missing custom fields | Fields return null | Verify `selectionSet` includes required data |
+| Deployment timeout | Provisioning hangs | Check Adobe I/O console for errors |
+| Type mismatch | GraphQL validation errors | Ensure schema matches resolver return types |
+
+### Future Improvements
+
+#### Recommended Enhancements
+1. **Automated Testing**: Add test suite for resolvers
+2. **Type Generation**: Generate TypeScript types from schema
+3. **Monitoring**: Add performance metrics to resolvers
+4. **Documentation**: Auto-generate API documentation from schema
+5. **Version Control**: Implement mesh versioning strategy
+
+#### Architecture Considerations
+- Consider splitting resolvers into more files as they grow
+- Evaluate caching strategy for computed fields
+- Plan for multi-environment deployment (dev/stage/prod)
+- Implement blue-green deployment for zero-downtime updates
