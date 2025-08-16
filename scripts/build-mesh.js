@@ -54,11 +54,11 @@ const format = {
  */
 function combineSchemaFiles() {
   const schemaDir = path.join(__dirname, '..', 'schema');
-  const schemaFiles = [
-    'product-cards.graphql',
-    'search-suggestions.graphql',
-    'extensions.graphql'
-  ];
+  
+  // Automatically include all .graphql files in the schema directory
+  const schemaFiles = fs.readdirSync(schemaDir)
+    .filter(file => file.endsWith('.graphql'))
+    .sort(); // Sort for consistent output order
   
   let combinedSchema = '';
   

@@ -1,11 +1,22 @@
 /**
  * Citisignal_productCards Resolver
  * 
- * Intelligently uses Catalog Service for initial loads and Live Search for filtering.
- * Returns products formatted for category/listing pages with optional facets.
+ * TWO MODES OF OPERATION:
+ * 1. SEARCH MODE (user has search text): 
+ *    - Runs Live Search + Catalog in parallel
+ *    - Uses AI ranking from Live Search with full details from Catalog
+ * 
+ * 2. CATALOG MODE (no search text):
+ *    - Direct Catalog query for filters and initial loads
+ * 
+ * NOTE: All helpers must be inline due to mesh architecture limitations.
+ * Cannot split into separate files or use external utilities.
+ * Facets are handled by separate Citisignal_productFacets resolver.
  */
 
-// Helper functions for the Citisignal_productCards resolver
+// ============================================================================
+// SECTION 1: DATA TRANSFORMATION HELPERS
+// ============================================================================
 const cleanAttributeName = (name) => {
   if (!name) return '';
   // Remove cs_ prefix if present
@@ -88,7 +99,10 @@ const formatPrice = (amount) => {
   return `$${amount.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`;
 };
 
-// Constants
+// ============================================================================
+// SECTION 2: FILTER BUILDERS (Convert frontend filters to service-specific format)
+// ============================================================================
+
 const DEFAULT_MAX_PRICE = 999999;
 const DEFAULT_MIN_PRICE = 0;
 
@@ -106,7 +120,7 @@ const buildCatalogFilters = (filter) => {
   
   if (filter.manufacturer) {
     catalogFilters.push({
-      attribute: 'cs_manufacturer',
+      attribute: 'cs_manufacturer',  // Adobe expects cs_ prefix
       in: [filter.manufacturer]
     });
   }
@@ -124,37 +138,22 @@ const buildCatalogFilters = (filter) => {
   return catalogFilters;
 };
 
-// Build filters for Live Search API
-const buildSearchFilters = (filter) => {
+const buildLiveSearchFilters = (filter) => {
   if (!filter) return [];
   
   const searchFilters = [];
   
   if (filter.category) {
     searchFilters.push({
-      attribute: 'categories',
+      attribute: 'categories',  // Live Search uses 'categories'
       in: [filter.category]
     });
   }
   
   if (filter.manufacturer) {
     searchFilters.push({
-      attribute: 'manufacturer',
+      attribute: 'cs_manufacturer',
       in: [filter.manufacturer]
-    });
-  }
-  
-  if (filter.memory && filter.memory.length > 0) {
-    searchFilters.push({
-      attribute: 'memory',
-      in: filter.memory
-    });
-  }
-  
-  if (filter.colors && filter.colors.length > 0) {
-    searchFilters.push({
-      attribute: 'color',
-      in: filter.colors
     });
   }
   
@@ -171,7 +170,10 @@ const buildSearchFilters = (filter) => {
   return searchFilters;
 };
 
-// Map frontend sort options to service-specific formats
+// ============================================================================
+// SECTION 3: SORT MAPPERS (Convert frontend sort to service-specific format)
+// ============================================================================
+
 const mapSortForCatalog = (sort) => {
   if (!sort) return null;
   
@@ -185,9 +187,9 @@ const mapSortForCatalog = (sort) => {
   const fieldName = attributeMap[sort.attribute];
   if (!fieldName) return null;
   
-  // Catalog Service expects a sort object with attribute and direction
+  // Catalog Service expects a sort object with name and direction
   return {
-    attribute: fieldName,
+    name: fieldName,
     direction: sort.direction || 'DESC'
   };
 };
@@ -212,40 +214,107 @@ const mapSortForLiveSearch = (sort) => {
   }];
 };
 
-// Determine if we should use Live Search based on request parameters
+// ============================================================================
+// SECTION 4: SERVICE SELECTION & PRODUCT TRANSFORMATION
+// ============================================================================
+
 const shouldUseLiveSearch = (args) => {
-  // Simple logic:
-  // 1. If user is searching (has text in search bar) -> Live Search
-  // 2. If user requested facets (for dynamic filters) -> Live Search  
-  // 3. Everything else -> Catalog Service
-  
+  // Use Live Search when user is actively searching
+  // This gives us AI-powered relevance ranking
   if (args.phrase && args.phrase.trim() !== '') return true;
-  if (args.facets === true) return true;
   
-  // Default to Catalog Service for initial loads and basic browsing
+  // For filters without search, use Catalog directly
   return false;
 };
 
-// Transform Live Search facets to our clean format
-const transformFacets = (aggregations) => {
-  if (!aggregations || !Array.isArray(aggregations)) return [];
-  
-  return aggregations.map(facet => {
-    const options = facet.options?.map(opt => ({
-      label: opt.label,
-      value: opt.value,
-      count: opt.count || 0
-    })) || [];
-    
-    return {
-      attribute: facet.attribute,
-      label: facet.label, // Use the label configured in Commerce admin
-      options: options.filter(opt => opt.count > 0) // Only show options with products
-    };
-  }).filter(facet => facet.options.length > 0); // Only include facets with options
+// Extract SKUs from Live Search results while preserving order
+const extractOrderedSkus = (liveSearchResult) => {
+  const skus = [];
+  if (liveSearchResult?.items) {
+    liveSearchResult.items.forEach(item => {
+      const sku = item.productView?.sku || item.product?.sku;
+      if (sku) skus.push(sku);
+    });
+  }
+  return skus;
 };
 
-// Minimal query for product cards (listing pages) - Catalog Service
+// Build a map of SKU to product for fast lookups
+const buildProductMap = (catalogResult) => {
+  const productMap = new Map();
+  if (catalogResult?.items) {
+    catalogResult.items.forEach(item => {
+      const product = item.productView;
+      if (product?.sku) {
+        productMap.set(product.sku, product);
+      }
+    });
+  }
+  return productMap;
+};
+
+// Merge products in Live Search order with Catalog data
+const mergeSearchResults = (orderedSkus, productMap) => {
+  if (!orderedSkus.length) return [];
+  
+  return orderedSkus
+    .map(sku => {
+      const product = productMap.get(sku);
+      return product ? transformProductToCard(product) : null;
+    })
+    .filter(Boolean); // Remove any nulls
+};
+
+// Build query arguments for service calls
+const buildQueryArgs = (args, filters, sort) => {
+  const queryArgs = {
+    phrase: args.phrase || '',
+    filter: filters,
+    page_size: args.limit || 20,
+    current_page: args.page || 1
+  };
+  
+  if (sort) {
+    queryArgs.sort = sort;
+  }
+  
+  return queryArgs;
+};
+
+// Transform a Catalog product to our standard format
+// Used by both modes to ensure consistent output
+const transformProductToCard = (product) => {
+  const isComplex = product.__typename === 'Catalog_ComplexProductView';
+  const regularPrice = extractRegularPrice(product);
+  const finalPrice = extractFinalPrice(product);
+  const onSale = isOnSale(regularPrice, finalPrice);
+  
+  const image = product.images?.[0] ? {
+    url: ensureHttpsUrl(product.images[0].url),
+    altText: product.images[0].label || product.name
+  } : null;
+  
+  return {
+    id: product.id,
+    sku: product.sku,
+    urlKey: product.urlKey || '',
+    name: product.name,
+    manufacturer: extractAttributeValue(product.attributes, 'manufacturer', null),
+    price: formatPrice(finalPrice),
+    originalPrice: onSale ? formatPrice(regularPrice) : null,
+    discountPercent: onSale ? calculateDiscountPercentage(regularPrice, finalPrice) : null,
+    inStock: product.inStock || false,
+    image: image,
+    memory: isComplex ? extractMemoryOptions(product.options) : [],
+    colors: isComplex ? extractColorOptions(product.options) : []
+  };
+};
+
+// ============================================================================
+// SECTION 5: GRAPHQL QUERIES
+// ============================================================================
+
+// Query 1: Basic Catalog query (no facets) - used for initial page loads
 const PRODUCT_CARD_QUERY = `{
   items {
     productView {
@@ -323,44 +392,15 @@ const PRODUCT_CARD_QUERY = `{
   total_count
 }`;
 
-// Query for Live Search with facets
-const SEARCH_QUERY = `{
+// Query 2: Live Search query (minimal) - only gets SKUs and ranking
+const LIVE_SEARCH_QUERY = `{
   items {
     product {
-      __typename
-      uid
+      sku
       name
-      price_range {
-        minimum_price {
-          regular_price {
-            value
-            currency
-          }
-          final_price {
-            value
-            currency
-          }
-        }
-      }
     }
     productView {
-      inStock
       sku
-      urlKey
-      images {
-        url
-        label
-      }
-    }
-  }
-  aggregations {
-    attribute
-    label
-    count
-    options {
-      label
-      value
-      count
     }
   }
   page_info {
@@ -371,6 +411,11 @@ const SEARCH_QUERY = `{
   total_count
 }`;
 
+
+// ============================================================================
+// SECTION 6: MAIN RESOLVER
+// ============================================================================
+
 module.exports = {
   resolvers: {
     Query: {
@@ -380,80 +425,60 @@ module.exports = {
             const useLiveSearch = shouldUseLiveSearch(args);
             let searchResult;
             let items = [];
-            let facets = null;
             
+            // ==================================================================
+            // MODE 1: SEARCH WITH AI RANKING (Parallel Live Search + Catalog)
+            // ==================================================================
             if (useLiveSearch) {
-              // Use Live Search for filtering and search
-              const searchFilters = buildSearchFilters(args.filter);
+              // Run BOTH queries in parallel for better performance
+              const liveSearchFilters = buildLiveSearchFilters(args.filter);
+              const catalogFilters = buildCatalogFilters(args.filter);
               const searchSort = mapSortForLiveSearch(args.sort);
               
-              searchResult = await context.LiveSearchSandbox.Query.Search_productSearch({
-                root: {},
-                args: {
-                  phrase: args.phrase || '',
-                  filter: searchFilters,
-                  page_size: args.limit || 20,
-                  current_page: args.page || 1,
-                  sort: searchSort
-                },
-                context,
-                selectionSet: SEARCH_QUERY
-              });
+              // Build query arguments
+              const liveSearchArgs = buildQueryArgs(args, liveSearchFilters, searchSort);
+              const catalogArgs = buildQueryArgs(args, catalogFilters, 
+                searchSort ? mapSortForCatalog(args.sort) : undefined);
               
-              // Transform Live Search results to our format
-              if (searchResult?.items) {
-                items = searchResult.items.map(item => {
-                  const product = item.product;
-                  const productView = item.productView; // Live Search has more complete data in productView
-                  const regularPrice = product.price_range?.minimum_price?.regular_price?.value;
-                  const finalPrice = product.price_range?.minimum_price?.final_price?.value;
-                  const onSale = isOnSale(regularPrice, finalPrice);
-                  
-                  // Use productView.images which has full URLs
-                  const firstImage = productView?.images?.[0];
-                  const image = firstImage ? {
-                    url: ensureHttpsUrl(firstImage.url),
-                    altText: firstImage.label || product.name
-                  } : null;
-                  
-                  // For Live Search, we'll need to fetch attributes separately or use defaults
-                  // This is a limitation we'll need to address with custom fields
-                  return {
-                    id: product.uid,
-                    sku: productView?.sku || product.sku,
-                    urlKey: productView?.urlKey || '',
-                    name: product.name,
-                    manufacturer: null, // Will need custom field
-                    price: formatPrice(finalPrice),
-                    originalPrice: onSale ? formatPrice(regularPrice) : null,
-                    discountPercent: onSale ? calculateDiscountPercentage(regularPrice, finalPrice) : null,
-                    inStock: productView?.inStock !== false, // default to true if missing
-                    image: image,
-                    memory: [], // Will need custom field
-                    colors: []  // Will need custom field
-                  };
-                });
-              }
+              // Start both queries at the same time
+              const [liveSearchResult, catalogSearchResult] = await Promise.all([
+                // Query 1: Live Search for ranking
+                context.LiveSearchSandbox.Query.Search_productSearch({
+                  root: {},
+                  args: liveSearchArgs,
+                  context,
+                  selectionSet: LIVE_SEARCH_QUERY
+                }),
+                // Query 2: Catalog search for full product details
+                context.CatalogServiceSandbox.Query.Catalog_productSearch({
+                  root: {},
+                  args: catalogArgs,
+                  context,
+                  selectionSet: PRODUCT_CARD_QUERY
+                })
+              ]);
               
-              // Include facets if requested
-              if (args.facets && searchResult?.aggregations) {
-                facets = transformFacets(searchResult.aggregations);
-              }
+              // Extract SKUs from Live Search results (preserving order)
+              const orderedSkus = extractOrderedSkus(liveSearchResult);
+              
+              // Create a map of SKU to full product data from Catalog results
+              const productMap = buildProductMap(catalogSearchResult);
+              
+              // Merge results maintaining Live Search order
+              items = mergeSearchResults(orderedSkus, productMap);
+              
+              // Set pagination info from Live Search
+              searchResult = liveSearchResult;
+              
+            // ==================================================================
+            // MODE 2: CATALOG ONLY (with or without facets based on request)
+            // ==================================================================
             } else {
-              // Use Catalog Service for initial loads
+              // Use Catalog Service for all non-search queries
               const catalogFilters = buildCatalogFilters(args.filter);
               const catalogSort = mapSortForCatalog(args.sort);
-              const catalogArgs = {
-                phrase: args.phrase || '',
-                filter: catalogFilters,
-                page_size: args.limit || 20,
-                current_page: args.page || 1
-              };
+              const catalogArgs = buildQueryArgs(args, catalogFilters, catalogSort);
               
-              // Only add sort if provided
-              if (catalogSort) {
-                catalogArgs.sort = catalogSort;
-              }
               searchResult = await context.CatalogServiceSandbox.Query.Catalog_productSearch({
                 root: {},
                 args: catalogArgs,
@@ -461,40 +486,18 @@ module.exports = {
                 selectionSet: PRODUCT_CARD_QUERY
               });
               
-              // Transform Catalog results to our format
+              // Transform products using standard transformer
               if (searchResult?.items) {
-                items = searchResult.items.map(item => {
-                  const product = item.productView;
-                  const isComplex = product.__typename === 'Catalog_ComplexProductView';
-                  const regularPrice = extractRegularPrice(product);
-                  const finalPrice = extractFinalPrice(product);
-                  const onSale = isOnSale(regularPrice, finalPrice);
-                  
-                  const image = product.images?.[0] ? {
-                    url: ensureHttpsUrl(product.images[0].url),
-                    altText: product.images[0].label || product.name
-                  } : null;
-                  
-                  const stockStatus = product.inStock || false;
-                  
-                  return {
-                    id: product.id,
-                    sku: product.sku,
-                    urlKey: product.urlKey || '',
-                    name: product.name,
-                    manufacturer: extractAttributeValue(product.attributes, 'manufacturer', null),
-                    price: formatPrice(finalPrice),
-                    originalPrice: onSale ? formatPrice(regularPrice) : null,
-                    discountPercent: onSale ? calculateDiscountPercentage(regularPrice, finalPrice) : null,
-                    inStock: stockStatus,
-                    image: image,
-                    memory: isComplex ? extractMemoryOptions(product.options) : [],
-                    colors: isComplex ? extractColorOptions(product.options) : []
-                  };
-                });
+                items = searchResult.items.map(item => 
+                  transformProductToCard(item.productView)
+                );
               }
+              
             }
             
+            // ==================================================================
+            // FINAL RESPONSE FORMATTING
+            // ==================================================================
             const currentPage = searchResult?.page_info?.current_page || args.page || 1;
             const totalPages = searchResult?.page_info?.total_pages || 0;
             
@@ -502,8 +505,7 @@ module.exports = {
               items,
               totalCount: searchResult?.total_count || 0,
               hasMoreItems: currentPage < totalPages,
-              currentPage,
-              facets // Will be null for Catalog, populated for Live Search
+              currentPage
             };
           } catch (error) {
             throw error;

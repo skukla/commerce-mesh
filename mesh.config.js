@@ -93,17 +93,19 @@ module.exports = {
     transforms: [
       {
         filterSchema: {
-          mode: "wrap",
+          mode: "bare",
           filters: [
-            "Query.{Citisignal_*, Catalog_productSearch, Search_productSearch}",
-            "Type.!Mutation"
+            "Query.{Citisignal_*, Catalog_productSearch, Search_productSearch}"
           ]
         }
       }
     ],
-    // additionalTypeDefs will be added by build script
+    // additionalTypeDefs will be added by build script from schema/*.graphql files
+    // Resolvers are explicitly listed for order control and security
+    // Remember to add new resolvers here when creating them
     additionalResolvers: [
       "./resolvers/product-cards.js",
+      "./resolvers/product-facets.js",
       "./resolvers/search-suggestions.js",
       "./resolvers/field-extensions.js"
     ],
