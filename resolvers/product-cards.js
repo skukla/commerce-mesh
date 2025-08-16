@@ -177,19 +177,25 @@ const buildLiveSearchFilters = (filter) => {
 const mapSortForCatalog = (sort) => {
   if (!sort) return null;
   
+  // Catalog Service doesn't support relevance sorting
+  // That's an AI feature only available in Live Search
+  if (sort.attribute === 'RELEVANCE') {
+    return null; // Don't send any sort for relevance in catalog mode
+  }
+  
   // Map attribute names to Catalog Service field names
   const attributeMap = {
     'PRICE': 'price',
-    'NAME': 'name',
-    'RELEVANCE': 'relevance'
+    'NAME': 'name'
   };
   
   const fieldName = attributeMap[sort.attribute];
   if (!fieldName) return null;
   
-  // Catalog Service expects a sort object with name and direction
+  // Catalog Service expects a sort object with attribute and direction
+  // Direction must be the actual enum value, not a string
   return {
-    name: fieldName,
+    attribute: fieldName,
     direction: sort.direction || 'DESC'
   };
 };
@@ -268,7 +274,7 @@ const mergeSearchResults = (orderedSkus, productMap) => {
 // Build query arguments for service calls
 const buildQueryArgs = (args, filters, sort) => {
   const queryArgs = {
-    phrase: args.phrase || '',
+    phrase: args.phrase || '', // Catalog Service requires phrase, even if empty
     filter: filters,
     page_size: args.limit || 20,
     current_page: args.page || 1
