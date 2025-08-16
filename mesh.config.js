@@ -95,7 +95,7 @@ module.exports = {
         filterSchema: {
           mode: "wrap",
           filters: [
-            "Query.{Citisignal_*, Catalog_productSearch}",
+            "Query.{Citisignal_*, Catalog_productSearch, Search_productSearch}",
             "Type.!Mutation"
           ]
         }
@@ -103,7 +103,8 @@ module.exports = {
     ],
     // additionalTypeDefs will be added by build script
     additionalResolvers: [
-      "./resolvers/product-queries.js",
+      "./resolvers/product-cards.js",
+      "./resolvers/search-suggestions.js",
       "./resolvers/field-extensions.js"
     ],
     responseConfig: {

@@ -26,6 +26,12 @@ const cleanAttributeName = (name) => {
 
 const ensureHttpsUrl = (url) => {
   if (!url || typeof url !== 'string') return url;
+  
+  // Handle protocol-relative URLs (//domain.com)
+  if (url.startsWith('//')) {
+    return 'https:' + url;
+  }
+  
   // Convert HTTP to HTTPS for secure delivery
   return url.replace(/^http:\/\//, 'https://');
 };

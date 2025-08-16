@@ -55,7 +55,8 @@ const format = {
 function combineSchemaFiles() {
   const schemaDir = path.join(__dirname, '..', 'schema');
   const schemaFiles = [
-    'queries.graphql',
+    'product-cards.graphql',
+    'search-suggestions.graphql',
     'extensions.graphql'
   ];
   
@@ -88,9 +89,11 @@ function getMeshSourceHash() {
   try {
     const sourceFiles = [
       'mesh.config.js',
-      'schema/queries.graphql',
+      'schema/product-cards.graphql',
+      'schema/search-suggestions.graphql',
       'schema/extensions.graphql',
-      'resolvers/product-queries.js',
+      'resolvers/product-cards.js',
+      'resolvers/search-suggestions.js',
       'resolvers/field-extensions.js'
     ];
 

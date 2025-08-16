@@ -1,9 +1,9 @@
-# Custom Queries and Types
+# Product Cards Query Schema
 #
-# Our custom GraphQL queries and the types they use
-# These provide simplified, frontend-friendly interfaces
+# Types and query for product listing/category pages
+# Supports both Catalog Service and Live Search with dynamic facets
 
-# Shared types used by our queries
+# Shared types used by product cards
 type ColorOption {
   name: String
   hex: String
@@ -30,30 +30,54 @@ type ProductCard {
   colors: [ColorOption]
 }
 
-# Product search result with pagination
+# Facet option with count
+type FacetOption {
+  label: String!
+  value: String!
+  count: Int!
+}
+
+# Facet for filtering
+type Facet {
+  attribute: String!
+  label: String!
+  options: [FacetOption]!
+}
+
+# Product search result with pagination and facets
 type ProductCardResult {
   items: [ProductCard]
   totalCount: Int
   hasMoreItems: Boolean!
   currentPage: Int
+  facets: [Facet]
 }
 
 # Filter input for product searches
 input Citisignal_ProductFilter {
   category: String
   manufacturer: String
+  memory: [String]
+  colors: [String]
   priceMin: Float
   priceMax: Float
-  inStockOnly: Boolean
   onSaleOnly: Boolean
 }
 
-# Custom queries
+# Sort options
+input Citisignal_SortInput {
+  attribute: String!
+  direction: String!
+}
+
+# Product cards query
 extend type Query {
   Citisignal_productCards(
     phrase: String
     filter: Citisignal_ProductFilter
     limit: Int = 20
     page: Int = 1
+    facets: Boolean = false
+    sort: Citisignal_SortInput
   ): ProductCardResult
 }

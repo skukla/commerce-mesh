@@ -84,14 +84,23 @@ function isProdEnvironment(args) {
 function getMeshHash() {
   try {
     const meshJsonPath = path.join(__dirname, '..', 'mesh.json');
-    const resolversPath = path.join(__dirname, '..', 'resolvers.js');
+    const resolversDir = path.join(__dirname, '..', 'resolvers');
     
     let combinedContent = '';
     if (fs.existsSync(meshJsonPath)) {
       combinedContent += fs.readFileSync(meshJsonPath, 'utf8');
     }
-    if (fs.existsSync(resolversPath)) {
-      combinedContent += fs.readFileSync(resolversPath, 'utf8');
+    
+    // Include all resolver files
+    if (fs.existsSync(resolversDir)) {
+      const resolverFiles = fs.readdirSync(resolversDir)
+        .filter(f => f.endsWith('.js'))
+        .sort(); // Sort for consistent hash
+      
+      resolverFiles.forEach(file => {
+        const filePath = path.join(resolversDir, file);
+        combinedContent += fs.readFileSync(filePath, 'utf8');
+      });
     }
     
     return crypto.createHash('md5').update(combinedContent).digest('hex');

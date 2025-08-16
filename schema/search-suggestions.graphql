@@ -1,0 +1,27 @@
+# Search Suggestions Query Schema
+#
+# Types and query for search autocomplete functionality
+# Uses Live Search for AI-powered suggestions
+
+# Search suggestion type
+type ProductSuggestion {
+  id: String!
+  name: String!
+  sku: String!
+  urlKey: String!
+  price: String
+  image: String
+}
+
+# Search suggestions result
+type SearchSuggestionsResult {
+  suggestions: [ProductSuggestion]!
+  totalCount: Int
+}
+
+# Search suggestions query
+extend type Query {
+  Citisignal_searchSuggestions(
+    phrase: String!
+  ): SearchSuggestionsResult
+}
