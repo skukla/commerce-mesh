@@ -2,6 +2,10 @@
 
 Adobe API Mesh configuration for CitiSignal e-commerce integration.
 
+## 🔴 Required After Every Change
+1. **[Code Review](../citisignal-nextjs/docs/code-review-checklist.md)** - Check simplicity, patterns, types
+2. **[Update Docs](../citisignal-nextjs/docs/documentation-checklist.md)** - Keep documentation current
+
 ## Quick Reference
 
 - **Deploy**: `npm run update` - Builds and deploys to staging (includes build step)
@@ -39,10 +43,14 @@ Adobe API Mesh configuration for CitiSignal e-commerce integration.
 
 ### Service Selection Logic
 ```javascript
-// Simple, clear logic
-if (args.phrase) return 'live_search';     // User searching
-if (args.facets) return 'live_search';     // Need facets
-return 'catalog';                          // Initial load
+// Product cards resolver
+if (args.phrase && args.phrase.trim() !== '') {
+  return 'hybrid';  // Live Search + Catalog in parallel
+}
+return 'catalog';   // Direct Catalog query
+
+// Facets resolver
+return 'live_search';  // Always - Catalog has no facets support
 ```
 
 ### Data Consistency
@@ -70,101 +78,31 @@ curl -X POST [endpoint] \
 
 ## Key Learnings
 
-1. **productView is Critical** - Live Search's complete data lives here
-2. **Images Vary** - Live Search may return relative paths, use `productView.images`
-3. **Stock Status** - Show all products with badges, don't filter
-4. **Facets on Demand** - Only request when user interacts
-5. **Keep It Simple** - Clear service selection, no complex logic
-6. **Facets Performance Tip** - Use `page_size: 1` when fetching only facets. Aggregations are calculated across the entire result set regardless of page size, so minimal products = faster response
-7. **Service Capabilities** - Catalog Service does NOT support facets/aggregations, only Live Search does
-8. **Category Filtering** - Live Search uses `categories` attribute, Catalog uses `categoryPath`
-9. **Sort Fields** - Catalog Service expects `sort: {name: "price"}` not `sort: {attribute: "price"}`
-10. **Build Script** - Auto-glob schema files instead of hardcoding for maintainability
+1. **Catalog Service has NO facets support** - Always use Live Search for filters
+2. **Sort field is `attribute` not `name`** - Returns empty results if wrong
+3. **Catalog requires `phrase` parameter** - Even if empty string
+4. **Use `page_size: 1` for facets** - Aggregations cover all results anyway
+5. **Parallel queries for hybrid search** - 50% faster than sequential
+
+## 🚨 Critical API Differences
+
+**[→ See detailed API differences documentation](./docs/api-differences.md)**
+
+Key gotchas:
+- Sort field: `attribute` not `name` 
+- Category filter: `categoryPath` vs `categories`
+- Catalog requires `phrase` even if empty
+- Catalog has NO facets support
 
 ## Hybrid Search Implementation
 
-### The Problem
-- **Live Search** provides AI-powered relevance but lacks product attributes (memory, colors, manufacturer)
-- **Catalog Service** has complete product data but basic text matching for search
-- Sequential API calls cause sluggish search experience
+**[→ See detailed hybrid search documentation](./docs/hybrid-search.md)**
 
-### The Solution: Parallel Hybrid Approach
-
-```javascript
-// When user searches, run BOTH queries in parallel
-const [liveSearchResult, catalogSearchResult] = await Promise.all([
-  // Query 1: Get AI-powered ranking from Live Search
-  context.LiveSearchSandbox.Query.Search_productSearch(...),
-  // Query 2: Get full product details from Catalog
-  context.CatalogServiceSandbox.Query.Catalog_productSearch(...)
-]);
-
-// Merge: Use Live Search order with Catalog data
-const orderedSkus = extractSkusFromLiveSearch(liveSearchResult);
-const productMap = buildProductMapFromCatalog(catalogSearchResult);
-const results = mergeInLiveSearchOrder(orderedSkus, productMap);
-```
-
-### Service Selection Logic
-
-**Product Cards** (`product-cards.js`):
-```javascript
-if (userIsSearching) {
-  // Use hybrid approach: Live Search ranking + Catalog details
-  return parallelHybridSearch();
-} else {
-  // Direct Catalog query for filters and initial loads
-  return catalogQuery();
-}
-```
-
-**Facets** (`product-facets.js` - separate resolver):
-```javascript
-if (userIsSearching) {
-  // Live Search for AI-aware facets
-  return liveSearchFacets();
-} else {
-  // Catalog Service for category facets
-  return catalogFacets();
-}
-// Note: Always use page_size: 1 for facets - aggregations cover all results
-```
-
-### Performance Metrics
-- **Parallel queries**: ~50% faster than sequential (200ms vs 400ms)
-- **With debouncing**: 80% fewer API calls during typing
-- **Result**: Responsive search with complete product data
-
-### Important Notes
-- Both services hit the same endpoint but with different GraphQL operations
-- `Search_productSearch` uses Live Search schema (limited attributes)
-- `Catalog_productSearch` uses Catalog schema (full product data)
-- Frontend remains simple - just calls `Citisignal_productCards`
-
-## Facets Implementation
-
-### Architecture Decision
-Facets are handled by a **separate resolver** (`product-facets.js`) following single responsibility principle:
-- Product cards resolver focuses on products
-- Facets resolver focuses on filter options
-- Both can be optimized independently
-
-### Key Discoveries
-1. **Catalog Service has NO facets support** - Confirmed via API testing and documentation
-2. **Live Search facets structure** - Uses `facets.buckets` not `aggregations.options`
-3. **Always use Live Search for facets** - Since Catalog doesn't support them at all
-
-### Frontend Integration
-```javascript
-// Separate hooks for separation of concerns
-const { items, loading } = useProductCards({ ... });
-const { facets, loading: facetsLoading } = useProductFacets({ ... });
-```
-
-### Performance Optimization
-- Facets query uses `page_size: 1` since aggregations cover all results
-- Products and facets load in parallel
-- SWR caching with `keepPreviousData` prevents flicker
+When users search, we run Live Search + Catalog in parallel:
+- Live Search for AI ranking (SKUs only)
+- Catalog for complete product data
+- Merge preserving Live Search order
+- 50% faster than sequential
 
 ## Deployment
 
@@ -184,3 +122,12 @@ Required in `.env`:
 - `ADOBE_CATALOG_API_KEY`
 - `ADOBE_COMMERCE_ENVIRONMENT_ID`
 - Various store codes
+
+## Testing
+```bash
+# Test resolver directly
+curl -X POST [endpoint] \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: [key]" \
+  -d '{"query": "{ Citisignal_productCards(...) { ... } }"}'
+```
