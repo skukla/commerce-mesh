@@ -84,8 +84,13 @@ const calculateDiscountPercentage = (regularPrice, finalPrice) => {
 
 const formatPrice = (amount) => {
   if (amount === null || amount === undefined) return null;
-  return `$${amount.toFixed(2)}`;
+  // Add comma formatting for thousands
+  return `$${amount.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`;
 };
+
+// Constants
+const DEFAULT_MAX_PRICE = 999999;
+const DEFAULT_MIN_PRICE = 0;
 
 const buildCatalogFilters = (filter) => {
   if (!filter) return [];
@@ -110,8 +115,8 @@ const buildCatalogFilters = (filter) => {
     catalogFilters.push({
       attribute: 'price',
       range: {
-        from: filter.priceMin || 0,
-        to: filter.priceMax || 999999
+        from: filter.priceMin || DEFAULT_MIN_PRICE,
+        to: filter.priceMax || DEFAULT_MAX_PRICE
       }
     });
   }
@@ -157,13 +162,54 @@ const buildSearchFilters = (filter) => {
     searchFilters.push({
       attribute: 'price',
       range: {
-        from: filter.priceMin || 0,
-        to: filter.priceMax || 999999
+        from: filter.priceMin || DEFAULT_MIN_PRICE,
+        to: filter.priceMax || DEFAULT_MAX_PRICE
       }
     });
   }
   
   return searchFilters;
+};
+
+// Map frontend sort options to service-specific formats
+const mapSortForCatalog = (sort) => {
+  if (!sort) return null;
+  
+  // Map attribute names to Catalog Service field names
+  const attributeMap = {
+    'PRICE': 'price',
+    'NAME': 'name',
+    'RELEVANCE': 'relevance'
+  };
+  
+  const fieldName = attributeMap[sort.attribute];
+  if (!fieldName) return null;
+  
+  // Catalog Service expects a sort object with attribute and direction
+  return {
+    attribute: fieldName,
+    direction: sort.direction || 'DESC'
+  };
+};
+
+const mapSortForLiveSearch = (sort) => {
+  if (!sort) return [];
+  
+  // Map attribute names to Live Search field names
+  const attributeMap = {
+    'PRICE': 'price',
+    'NAME': 'name',
+    'RELEVANCE': 'relevance'
+  };
+  
+  const fieldName = attributeMap[sort.attribute];
+  if (!fieldName) return [];
+  
+  // Live Search expects an array of sort objects
+  return [{
+    attribute: fieldName,
+    direction: sort.direction || 'DESC'
+  }];
 };
 
 // Determine if we should use Live Search based on request parameters
@@ -339,6 +385,7 @@ module.exports = {
             if (useLiveSearch) {
               // Use Live Search for filtering and search
               const searchFilters = buildSearchFilters(args.filter);
+              const searchSort = mapSortForLiveSearch(args.sort);
               
               searchResult = await context.LiveSearchSandbox.Query.Search_productSearch({
                 root: {},
@@ -347,7 +394,7 @@ module.exports = {
                   filter: searchFilters,
                   page_size: args.limit || 20,
                   current_page: args.page || 1,
-                  sort: args.sort ? [args.sort] : []
+                  sort: searchSort
                 },
                 context,
                 selectionSet: SEARCH_QUERY
@@ -395,15 +442,21 @@ module.exports = {
             } else {
               // Use Catalog Service for initial loads
               const catalogFilters = buildCatalogFilters(args.filter);
+              const catalogSort = mapSortForCatalog(args.sort);
+              const catalogArgs = {
+                phrase: args.phrase || '',
+                filter: catalogFilters,
+                page_size: args.limit || 20,
+                current_page: args.page || 1
+              };
               
+              // Only add sort if provided
+              if (catalogSort) {
+                catalogArgs.sort = catalogSort;
+              }
               searchResult = await context.CatalogServiceSandbox.Query.Catalog_productSearch({
                 root: {},
-                args: {
-                  phrase: args.phrase || '',
-                  filter: catalogFilters,
-                  page_size: args.limit || 20,
-                  current_page: args.page || 1
-                },
+                args: catalogArgs,
                 context,
                 selectionSet: PRODUCT_CARD_QUERY
               });
@@ -453,7 +506,6 @@ module.exports = {
               facets // Will be null for Catalog, populated for Live Search
             };
           } catch (error) {
-            console.error('ProductCards query error:', error);
             throw error;
           }
         }

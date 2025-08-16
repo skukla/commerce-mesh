@@ -4,7 +4,8 @@
   "private": true,
   "description": "Adobe API Mesh for Commerce with enhanced product resolvers",
   "dependencies": {
-    "dotenv": "^17.2.1"
+    "dotenv": "^17.2.1",
+    "node-fetch": "^3.3.2"
   },
   "devDependencies": {
     "@adobe/aio-cli": "^10.0.0"

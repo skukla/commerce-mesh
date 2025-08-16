@@ -20,7 +20,8 @@ const ensureHttpsUrl = (url) => {
 // Helper function to format price
 const formatPrice = (amount) => {
   if (amount === null || amount === undefined) return null;
-  return `$${amount.toFixed(2)}`;
+  // Add comma formatting for thousands
+  return `$${amount.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`;
 };
 
 module.exports = {
@@ -92,7 +93,7 @@ module.exports = {
               totalCount: searchResult.total_count
             };
           } catch (error) {
-            console.error('Search suggestions error:', error);
+            // Return empty suggestions on error to allow graceful degradation
             return { suggestions: [] };
           }
         }

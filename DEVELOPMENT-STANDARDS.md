@@ -4,8 +4,8 @@ Adobe API Mesh configuration for CitiSignal e-commerce integration.
 
 ## Quick Reference
 
-- **Build**: `npm run build` - Generates mesh.json
-- **Deploy**: `npm run update` - Deploys to staging
+- **Deploy**: `npm run update` - Builds and deploys to staging (includes build step)
+- **Build Only**: `npm run build` - Generates mesh.json without deploying
 - **Test**: Use GraphQL playground or curl
 
 ## Architecture
@@ -34,6 +34,7 @@ Adobe API Mesh configuration for CitiSignal e-commerce integration.
 - **Handle Both Services** - Live Search uses `productView`, Catalog uses direct fields
 - **Image URLs** - Always ensure HTTPS, handle relative paths
 - **No External Utilities** - Helpers must be inline (Mesh limitation)
+- **Large Files Acceptable** - Can't split resolvers due to mesh architecture requiring inline helpers
 
 ### Service Selection Logic
 ```javascript
@@ -57,6 +58,15 @@ curl -X POST [endpoint] \
   -d '{"query": "{ Citisignal_productCards(...) { ... } }"}'
 ```
 
+### Simplicity Guidelines
+- **Clear Service Selection** - Simple if/else logic, no complex conditions
+- **Extract Helper Functions** - Keep resolver logic clean, helpers do transformations
+- **Consistent Naming** - Helper functions should clearly state their purpose
+- **No Debug Code** - Remove all console.log statements before commit
+- **Fail Gracefully** - Return empty results on error, don't crash
+- **Avoid Deep Nesting** - Use early returns and extracted functions
+- **Document Why, Not What** - Comments should explain business logic, not code
+
 ## Key Learnings
 
 1. **productView is Critical** - Live Search's complete data lives here
@@ -67,12 +77,13 @@ curl -X POST [endpoint] \
 
 ## Deployment
 
-Changes require rebuild and deploy:
-1. Make resolver changes
-2. `npm run build` - Generates mesh.json
-3. `npm run update` - Deploys to staging
-4. Confirm with "y" when prompted
-5. Wait for provisioning (~1-2 minutes)
+Changes require deployment:
+1. Make resolver or schema changes
+2. `npm run update` - Builds and deploys to staging
+3. Confirm with "y" when prompted
+4. Wait for provisioning (~1-2 minutes)
+
+Note: `npm run update` automatically runs the build step first, so there's no need to run `npm run build` separately.
 
 ## Environment Variables
 

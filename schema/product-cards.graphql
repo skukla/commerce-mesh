@@ -64,10 +64,23 @@ input Citisignal_ProductFilter {
   onSaleOnly: Boolean
 }
 
+# Sort direction enum
+enum SortDirection {
+  ASC
+  DESC
+}
+
+# Sort attribute enum for product listings
+enum ProductSortAttribute {
+  RELEVANCE     # Default for search results
+  PRICE         # Sort by price
+  NAME          # Sort by product name
+}
+
 # Sort options
 input Citisignal_SortInput {
-  attribute: String!
-  direction: String!
+  attribute: ProductSortAttribute!
+  direction: SortDirection!
 }
 
 # Product cards query
