@@ -95,7 +95,7 @@ module.exports = {
         filterSchema: {
           mode: "bare",
           filters: [
-            "Query.{Citisignal_*, Catalog_productSearch, Search_productSearch}"
+            "Query.{Citisignal_*, Catalog_productSearch, Search_productSearch, Commerce_categoryList}"
           ]
         }
       }
@@ -107,7 +107,9 @@ module.exports = {
       "./resolvers/product-cards.js",
       "./resolvers/product-facets.js",
       "./resolvers/search-suggestions.js",
-      "./resolvers/field-extensions.js"
+      "./resolvers/field-extensions.js",
+      "./resolvers/category-navigation.js",
+      "./resolvers/category-breadcrumbs.js"
     ],
     responseConfig: {
       CORS: {

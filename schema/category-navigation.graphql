@@ -1,0 +1,54 @@
+type Citisignal_CategoryItem {
+  id: String!
+  name: String!
+  urlPath: String!
+  urlKey: String!
+  level: Int!
+  position: Int!
+  includeInMenu: Boolean!
+  isActive: Boolean!
+  children: [Citisignal_CategoryItem!]!
+  productCount: Int!
+  parentId: String
+  href: String!
+  label: String!
+}
+
+type Citisignal_NavItem {
+  href: String!
+  label: String!
+  category: String
+}
+
+type Citisignal_FooterNavItem {
+  href: String!
+  label: String!
+}
+
+type Citisignal_CategoryNavigationResponse {
+  items: [Citisignal_CategoryItem!]!
+  headerNav: [Citisignal_NavItem!]!
+  footerNav: [Citisignal_FooterNavItem!]!
+}
+
+type Citisignal_BreadcrumbItem {
+  categoryId: String
+  name: String!
+  urlPath: String!
+  level: Int!
+}
+
+type Citisignal_BreadcrumbResponse {
+  items: [Citisignal_BreadcrumbItem!]!
+}
+
+extend type Query {
+  Citisignal_categoryNavigation(
+    rootCategoryId: String
+    includeInactive: Boolean
+  ): Citisignal_CategoryNavigationResponse
+  
+  Citisignal_categoryBreadcrumbs(
+    categoryUrlKey: String!
+  ): Citisignal_BreadcrumbResponse
+}
