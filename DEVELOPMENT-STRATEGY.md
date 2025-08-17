@@ -31,6 +31,20 @@ Adobe API Mesh configuration for CitiSignal e-commerce integration.
 - `product-facets.js` - Separate facets/filters query (optimized with page_size: 1)
 - `search-suggestions.js` - Autocomplete
 - `field-extensions.js` - Computed fields
+- `category-navigation.js` - Category hierarchy from Commerce Core (filters active/menu items, sorts by position)
+- `category-breadcrumbs.js` - Breadcrumb trails for categories (Home > Category path, no artificial "Shop" level)
+
+**🔴 CRITICAL: Filter Schema Configuration**
+When adding new custom queries, the filterSchema MUST be updated to expose them:
+```json
+"filterSchema": {
+  "mode": "bare",
+  "filters": [
+    "Query.{Citisignal_*, Catalog_productSearch, Search_productSearch}"
+  ]
+}
+```
+The `Citisignal_*` wildcard ensures all custom queries are exposed. Without this, queries will return null even if the resolver works correctly.
 
 ## Development Standards
 
