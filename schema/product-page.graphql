@@ -9,9 +9,9 @@ type Citisignal_ProductPageData {
 extend type Query {
   # Single query for all product page data - showcases API Mesh orchestration
   Citisignal_productPageData(
-    category: String
+    category: String  # Optional - for product listings within a category
     phrase: String
-    filter: [Citisignal_FilterInput]
+    filter: Citisignal_PageFilter  # Uses PageFilter without category field
     sort: Citisignal_SortInput
     pageSize: Int
     currentPage: Int

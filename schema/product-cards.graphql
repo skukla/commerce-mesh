@@ -50,9 +50,19 @@ type Citisignal_ProductCardResult {
   _debug: String  # Debug information when requested
 }
 
-# Filter input for product searches
+# Filter input for product searches (includes category for standalone queries)
 input Citisignal_ProductFilter {
   category: String
+  manufacturer: String
+  memory: [String]
+  colors: [String]
+  priceMin: Float
+  priceMax: Float
+  onSaleOnly: Boolean
+}
+
+# Filter input for page-level queries (category comes from resolver parameter)
+input Citisignal_PageFilter {
   manufacturer: String
   memory: [String]
   colors: [String]

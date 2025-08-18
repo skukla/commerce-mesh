@@ -1,13 +1,2 @@
 # Common input types used across multiple resolvers
-
-input Citisignal_FilterInput {
-  attribute: String
-  in: [String]
-  eq: String
-  range: Citisignal_RangeInput
-}
-
-input Citisignal_RangeInput {
-  from: Float
-  to: Float
-}
+# (Currently empty - filter types are defined in product-cards.graphql)

@@ -20,9 +20,9 @@ type Citisignal_CategoryPageData {
 
 extend type Query {
   Citisignal_categoryPageData(
-    category: String
+    category: String!  # Required for category pages
     phrase: String
-    filter: [Citisignal_FilterInput]
+    filter: Citisignal_PageFilter  # Uses PageFilter without category field
     sort: Citisignal_SortInput
     pageSize: Int
     currentPage: Int
