@@ -1,0 +1,30 @@
+# Category Page Data - Unified query for SSR-optimized category pages
+# Returns everything needed to render a category page in one query
+
+type Citisignal_CategoryInfo {
+  id: String
+  name: String!
+  urlKey: String!
+  description: String
+  metaTitle: String
+  metaDescription: String
+}
+
+type Citisignal_CategoryPageData {
+  navigation: Citisignal_CategoryNavigationResponse!
+  products: Citisignal_ProductCardResult!
+  facets: Citisignal_ProductFacetsResult!
+  breadcrumbs: Citisignal_BreadcrumbResponse!
+  categoryInfo: Citisignal_CategoryInfo!
+}
+
+extend type Query {
+  Citisignal_categoryPageData(
+    category: String
+    phrase: String
+    filter: [Citisignal_FilterInput]
+    sort: Citisignal_SortInput
+    pageSize: Int
+    currentPage: Int
+  ): Citisignal_CategoryPageData
+}
