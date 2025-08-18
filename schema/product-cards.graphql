@@ -5,18 +5,18 @@
 # Facets are handled by separate Citisignal_productFacets query
 
 # Shared types used by product cards
-type ColorOption {
+type Citisignal_ColorOption {
   name: String
   hex: String
 }
 
-type ProductImage {
+type Citisignal_ProductImage {
   url: String
   altText: String
 }
 
 # Product card type for listing pages
-type ProductCard {
+type Citisignal_ProductCard {
   id: String!
   sku: String!
   urlKey: String!
@@ -26,18 +26,28 @@ type ProductCard {
   originalPrice: String
   discountPercent: Int
   inStock: Boolean!
-  image: ProductImage     
+  image: Citisignal_ProductImage     
   memory: [String]   
-  colors: [ColorOption]
+  colors: [Citisignal_ColorOption]
+}
+
+# Page info for pagination
+type Citisignal_PageInfo {
+  current_page: Int!
+  page_size: Int!
+  total_pages: Int!
 }
 
 # Product search result with pagination
-type ProductCardResult {
-  items: [ProductCard]
+type Citisignal_ProductCardResult {
+  items: [Citisignal_ProductCard]
   totalCount: Int
   hasMoreItems: Boolean!
   currentPage: Int
-  facets: [Facet]  # Only populated on page 1 to reduce duplication
+  page_info: Citisignal_PageInfo
+  facets: [Citisignal_Facet]  # Only populated on page 1 to reduce duplication
+  aggregations: [Citisignal_Facet]  # Alias for facets to match frontend expectations
+  _debug: String  # Debug information when requested
 }
 
 # Filter input for product searches
@@ -52,13 +62,13 @@ input Citisignal_ProductFilter {
 }
 
 # Sort direction enum
-enum SortDirection {
+enum Citisignal_SortDirection {
   ASC
   DESC
 }
 
 # Sort attribute enum for product listings
-enum ProductSortAttribute {
+enum Citisignal_ProductSortAttribute {
   RELEVANCE     # Default for search results
   PRICE         # Sort by price
   NAME          # Sort by product name
@@ -66,8 +76,8 @@ enum ProductSortAttribute {
 
 # Sort options
 input Citisignal_SortInput {
-  attribute: ProductSortAttribute!
-  direction: SortDirection!
+  attribute: Citisignal_ProductSortAttribute!
+  direction: Citisignal_SortDirection!
 }
 
 # Product cards query
@@ -78,5 +88,5 @@ extend type Query {
     limit: Int = 20
     page: Int = 1
     sort: Citisignal_SortInput
-  ): ProductCardResult
+  ): Citisignal_ProductCardResult
 }

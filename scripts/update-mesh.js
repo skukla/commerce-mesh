@@ -134,19 +134,50 @@ function storeDeployHash(hash, isProd) {
 /**
  * Run deploy command with proper output handling
  */
-async function runDeployCommand(command, description, suppressCompletion = false) {
+async function runDeployCommand(command, description, suppressCompletion = false, captureOutput = false) {
   console.log(format.deploymentAction(description));
   await format.sleep(500);
 
   try {
-    execSync(command, { stdio: 'inherit', cwd: process.cwd() });
+    if (captureOutput) {
+      // Capture output to show errors properly
+      const output = execSync(command, { 
+        encoding: 'utf8',
+        cwd: process.cwd(),
+        stdio: 'pipe'
+      });
+      
+      // Check for errors in output
+      if (output.toLowerCase().includes('error:')) {
+        console.error(format.error(`${description} failed`));
+        console.error(output);
+        throw new Error('Mesh update failed with errors');
+      }
+      
+      // Show output if it contains important information
+      if (output.trim()) {
+        console.log(output);
+      }
+    } else {
+      execSync(command, { stdio: 'inherit', cwd: process.cwd() });
+    }
+    
     if (!suppressCompletion) {
       console.log(format.success(`${description} completed`));
     }
     return true;
   } catch (error) {
-    console.error(format.error(`${description} failed: ${error.message}`));
-    throw new Error(error.message);
+    // Extract the actual error message from command output
+    const errorMessage = error.stdout || error.stderr || error.message;
+    console.error(format.error(`${description} failed`));
+    
+    // Display the full error output for debugging
+    if (errorMessage) {
+      console.error(format.muted('Error details:'));
+      console.error(errorMessage);
+    }
+    
+    throw new Error(`${description} failed`);
   }
 }
 
@@ -269,8 +300,8 @@ async function purgeMeshCache(isProd, environment) {
  * Update mesh configuration
  */
 async function updateMeshConfiguration(isProd, environment) {
-  const meshCommand = `echo "y" | aio api-mesh:update mesh.json${isProd ? ' --prod' : ''}`;
-  await runDeployCommand(meshCommand, `Updating mesh configuration in ${environment}`, true);
+  const meshCommand = `echo "y" | aio api-mesh:update mesh.json${isProd ? ' --prod' : ''} 2>&1`;
+  await runDeployCommand(meshCommand, `Updating mesh configuration in ${environment}`, true, true);
   return true;
 }
 

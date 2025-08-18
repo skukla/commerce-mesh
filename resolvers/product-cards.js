@@ -322,6 +322,12 @@ const transformProductToCard = (product) => {
 
 // Query 1: Basic Catalog query (no facets) - used for initial page loads
 const PRODUCT_CARD_QUERY = `{
+  total_count
+  page_info {
+    current_page
+    page_size
+    total_pages
+  }
   items {
     productView {
       __typename
@@ -504,15 +510,60 @@ module.exports = {
             // ==================================================================
             // FINAL RESPONSE FORMATTING
             // ==================================================================
-            const currentPage = searchResult?.page_info?.current_page || args.page || 1;
-            const totalPages = searchResult?.page_info?.total_pages || 0;
+            // Build debug info if requested in query
+            const debugInfo = {};
             
-            return {
-              items,
-              totalCount: searchResult?.total_count || 0,
-              hasMoreItems: currentPage < totalPages,
-              currentPage
+            // Ensure we always have valid pagination values (non-nullable fields)
+            const pageArg = args.page || 1;
+            const limitArg = args.limit || 20;
+            
+            debugInfo.receivedArgs = args;
+            debugInfo.searchResultExists = !!searchResult;
+            debugInfo.searchResultPageInfo = searchResult?.page_info;
+            
+            const currentPage = searchResult?.page_info?.current_page || pageArg;
+            const pageSize = searchResult?.page_info?.page_size || limitArg;
+            const totalCount = searchResult?.total_count || items.length || 0;
+            const totalPages = searchResult?.page_info?.total_pages || 1;
+            
+            debugInfo.calculated = {
+              currentPage,
+              pageSize,
+              totalPages,
+              totalCount,
+              pageArg,
+              limitArg,
+              itemsLength: items.length
             };
+            
+            // Extract facets/aggregations (only on first page to reduce duplication)
+            const facets = (currentPage === 1 && searchResult?.facets) ? 
+              searchResult.facets : [];
+            
+            const response = {
+              items: items || [],
+              totalCount: totalCount,
+              hasMoreItems: currentPage < totalPages,
+              currentPage: currentPage,
+              page_info: {
+                current_page: currentPage,
+                page_size: pageSize,
+                total_pages: totalPages
+              },
+              facets: facets,
+              aggregations: facets  // Alias for frontend compatibility
+            };
+            
+            // Only include debug field if requested in selection set
+            const includeDebug = info?.fieldNodes?.[0]?.selectionSet?.selections?.some(
+              s => s.name?.value === '_debug'
+            );
+            
+            if (includeDebug) {
+              response._debug = JSON.stringify(debugInfo, null, 2);
+            }
+            
+            return response;
           } catch (error) {
             throw error;
           }

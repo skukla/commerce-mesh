@@ -6,7 +6,7 @@
 extend type Catalog_ComplexProductView {
   manufacturer: String
   memory_options: [String]
-  available_colors: [ColorOption]
+  available_colors: [Citisignal_ColorOption]
   is_on_sale: Boolean
   display_price: Float
   display_currency: String

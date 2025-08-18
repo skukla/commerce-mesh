@@ -1,20 +1,20 @@
 # Product Facets Query Schema
 
-type FacetOption {
+type Citisignal_FacetOption {
   id: String!
   name: String!
   count: Int!
 }
 
-type Facet {
+type Citisignal_Facet {
   title: String!
   key: String!
   type: String!
-  options: [FacetOption]!
+  options: [Citisignal_FacetOption]!
 }
 
-type ProductFacetsResult {
-  facets: [Facet]!
+type Citisignal_ProductFacetsResult {
+  facets: [Citisignal_Facet]!
   totalCount: Int
 }
 
@@ -22,5 +22,5 @@ extend type Query {
   Citisignal_productFacets(
     phrase: String
     filter: Citisignal_ProductFilter
-  ): ProductFacetsResult
+  ): Citisignal_ProductFacetsResult
 }

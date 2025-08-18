@@ -4,7 +4,7 @@
 # Uses Live Search for AI-powered suggestions
 
 # Search suggestion type
-type ProductSuggestion {
+type Citisignal_ProductSuggestion {
   id: String!
   name: String!
   sku: String!
@@ -14,8 +14,8 @@ type ProductSuggestion {
 }
 
 # Search suggestions result
-type SearchSuggestionsResult {
-  suggestions: [ProductSuggestion]!
+type Citisignal_SearchSuggestionsResult {
+  suggestions: [Citisignal_ProductSuggestion]!
   totalCount: Int
 }
 
@@ -23,5 +23,5 @@ type SearchSuggestionsResult {
 extend type Query {
   Citisignal_searchSuggestions(
     phrase: String!
-  ): SearchSuggestionsResult
+  ): Citisignal_SearchSuggestionsResult
 }
