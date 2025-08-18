@@ -25,14 +25,26 @@ Adobe API Mesh configuration for CitiSignal e-commerce integration.
 - `Citisignal_*` prefix for all custom queries
 - Intelligent service selection based on context
 - Data normalization for consistent API
+- Separate filter types for different contexts
 
-**Main Resolvers**:
-- `product-cards.js` - Hybrid Catalog/Live Search for product listings
-- `product-facets.js` - Separate facets/filters query (optimized with page_size: 1)
+**Resolver Types**:
+
+*Page-Level Resolvers (SSR-optimized)*:
+- `category-page.js` - Complete category page data in one query (uses `Citisignal_PageFilter`)
+- `product-page.js` - Complete product listing page data in one query (uses `Citisignal_PageFilter`)
+
+*Focused Resolvers (Single responsibility)*:
+- `product-cards.js` - Hybrid Catalog/Live Search for product listings (uses `Citisignal_ProductFilter`)
+- `product-facets.js` - Separate facets/filters query (uses `Citisignal_ProductFilter`)
 - `search-suggestions.js` - Autocomplete
 - `field-extensions.js` - Computed fields
 - `category-navigation.js` - Category hierarchy from Commerce Core (filters active/menu items, sorts by position)
 - `category-breadcrumbs.js` - Breadcrumb trails for categories (Home > Category path, no artificial "Shop" level)
+
+**Filter Architecture**:
+- `Citisignal_ProductFilter` - Used by standalone queries, includes category field
+- `Citisignal_PageFilter` - Used by page-level resolvers, category comes from resolver parameter
+- Clean separation prevents conflicting category values
 
 **🔴 CRITICAL: Filter Schema Configuration**
 When adding new custom queries, the filterSchema MUST be updated to expose them:
@@ -40,7 +52,8 @@ When adding new custom queries, the filterSchema MUST be updated to expose them:
 "filterSchema": {
   "mode": "bare",
   "filters": [
-    "Query.{Citisignal_*, Catalog_productSearch, Search_productSearch}"
+    "Query.{Citisignal_*, Catalog_productSearch, Search_productSearch, Commerce_categoryList}",
+    "!Mutation"  // Exclude all mutations for security
   ]
 }
 ```
@@ -48,12 +61,31 @@ The `Citisignal_*` wildcard ensures all custom queries are exposed. Without this
 
 ## Development Standards
 
+### Resolver Architecture
+
+**9-Section Pattern** (All resolvers follow this structure):
+1. **File Header** - Purpose and service orchestration description
+2. **Constants** - `DEFAULT_PAGE_SIZE = 24`, price limits
+3. **Filter Conversion** - Convert frontend filters to service formats
+4. **Attribute Extraction** - Clean and extract product attributes  
+5. **Price Utilities** - Price extraction and formatting
+6. **Product Transformation** - Consistent product format
+7. **Domain-Specific Functions** - Unique to each resolver (navigation, facets, etc.)
+8. **Service Queries** - Abstracted service calls
+9. **Main Resolver** - Orchestration with error handling
+
+**Shared Utilities Template**:
+- `shared-utilities-template.js` - Reference implementation of common functions
+- Copy needed functions from template when creating/updating resolvers
+- Maintains consistency despite necessary code duplication
+
 ### Resolver Guidelines
 - **Normalize Data** - Consistent structure regardless of service
 - **Handle Both Services** - Live Search uses `productView`, Catalog uses direct fields
 - **Image URLs** - Always ensure HTTPS, handle relative paths
 - **No External Utilities** - Helpers must be inline (Mesh limitation)
 - **Large Files Acceptable** - Can't split resolvers due to mesh architecture requiring inline helpers
+- **Return Safe Defaults** - Never return null/undefined on error for SSR resilience
 
 ### Service Selection Logic
 ```javascript
@@ -97,6 +129,8 @@ curl -X POST [endpoint] \
 3. **Catalog requires `phrase` parameter** - Even if empty string
 4. **Use `page_size: 1` for facets** - Aggregations cover all results anyway
 5. **Parallel queries for hybrid search** - 50% faster than sequential
+6. **API Mesh limitations** - No external imports, all code must be inline
+7. **Consistent field shapes** - All resolvers must return same shapes for same types
 
 ## 🚨 Critical API Differences
 
