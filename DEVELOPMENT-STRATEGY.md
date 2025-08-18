@@ -32,6 +32,7 @@ Adobe API Mesh configuration for CitiSignal e-commerce integration.
 *Page-Level Resolvers (SSR-optimized)*:
 - `category-page.js` - Complete category page data in one query (uses `Citisignal_PageFilter`)
 - `product-page.js` - Complete product listing page data in one query (uses `Citisignal_PageFilter`)
+- Used by frontend "Single Query" mode for demonstration and SSR preparation
 
 *Focused Resolvers (Single responsibility)*:
 - `product-cards.js` - Hybrid Catalog/Live Search for product listings (uses `Citisignal_ProductFilter`)

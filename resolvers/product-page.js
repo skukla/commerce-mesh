@@ -241,7 +241,7 @@ const transformNavigation = (categories, activeCategory) => {
       cat.children.forEach(child => {
         if (child.include_in_menu === 1 && child.level === 2) {
           const navItem = {
-            href: `/category/${child.url_key}`,
+            href: `/${child.url_key}`,
             label: child.name,
             category: child.url_key,
             isActive: child.url_key === activeCategory
@@ -269,13 +269,13 @@ const transformNavigation = (categories, activeCategory) => {
 const findCategoryBreadcrumbs = (categories, urlKey, trail = []) => {
   for (const cat of categories) {
     if (cat.url_key === urlKey) {
-      return [...trail, { name: cat.name, urlPath: `/category/${cat.url_key}` }];
+      return [...trail, { name: cat.name, urlPath: `/${cat.url_key}` }];
     }
     if (cat.children) {
       const result = findCategoryBreadcrumbs(
         cat.children,
         urlKey,
-        [...trail, { name: cat.name, urlPath: `/category/${cat.url_key}` }]
+        [...trail, { name: cat.name, urlPath: `/${cat.url_key}` }]
       );
       if (result) return result;
     }
