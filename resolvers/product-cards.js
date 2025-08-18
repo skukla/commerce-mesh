@@ -1,5 +1,5 @@
 /**
- * Citisignal_productCards Resolver
+ * PRODUCT CARDS RESOLVER
  * 
  * TWO MODES OF OPERATION:
  * 1. SEARCH MODE (user has search text): 
@@ -15,7 +15,15 @@
  */
 
 // ============================================================================
-// SECTION 1: DATA TRANSFORMATION HELPERS
+// SECTION 1: CONSTANTS
+// ============================================================================
+
+const DEFAULT_PAGE_SIZE = 24;
+const DEFAULT_MAX_PRICE = 999999;
+const DEFAULT_MIN_PRICE = 0;
+
+// ============================================================================
+// SECTION 2: ATTRIBUTE EXTRACTION
 // ============================================================================
 const cleanAttributeName = (name) => {
   if (!name) return '';
@@ -100,11 +108,8 @@ const formatPrice = (amount) => {
 };
 
 // ============================================================================
-// SECTION 2: FILTER BUILDERS (Convert frontend filters to service-specific format)
+// SECTION 3: FILTER CONVERSION
 // ============================================================================
-
-const DEFAULT_MAX_PRICE = 999999;
-const DEFAULT_MIN_PRICE = 0;
 
 const buildCatalogFilters = (filter) => {
   if (!filter) return [];
@@ -171,7 +176,7 @@ const buildLiveSearchFilters = (filter) => {
 };
 
 // ============================================================================
-// SECTION 3: SORT MAPPERS (Convert frontend sort to service-specific format)
+// SECTION 4: SORT MAPPERS
 // ============================================================================
 
 const mapSortForCatalog = (sort) => {
@@ -221,7 +226,7 @@ const mapSortForLiveSearch = (sort) => {
 };
 
 // ============================================================================
-// SECTION 4: SERVICE SELECTION & PRODUCT TRANSFORMATION
+// SECTION 5: PRODUCT TRANSFORMATION
 // ============================================================================
 
 const shouldUseLiveSearch = (args) => {
@@ -276,7 +281,7 @@ const buildQueryArgs = (args, filters, sort) => {
   const queryArgs = {
     phrase: args.phrase || '', // Catalog Service requires phrase, even if empty
     filter: filters,
-    page_size: args.limit || 20,
+    page_size: args.limit || DEFAULT_PAGE_SIZE,
     current_page: args.page || 1
   };
   
@@ -311,13 +316,13 @@ const transformProductToCard = (product) => {
     discountPercent: onSale ? calculateDiscountPercentage(regularPrice, finalPrice) : null,
     inStock: product.inStock || false,
     image: image,
-    memory: isComplex ? extractMemoryOptions(product.options) : [],
-    colors: isComplex ? extractColorOptions(product.options) : []
+    memory: isComplex && extractMemoryOptions(product.options).length > 0 ? extractMemoryOptions(product.options) : null,
+    colors: isComplex && extractColorOptions(product.options).length > 0 ? extractColorOptions(product.options) : null
   };
 };
 
 // ============================================================================
-// SECTION 5: GRAPHQL QUERIES
+// SECTION 6: SERVICE QUERIES
 // ============================================================================
 
 // Query 1: Basic Catalog query (no facets) - used for initial page loads
@@ -425,7 +430,7 @@ const LIVE_SEARCH_QUERY = `{
 
 
 // ============================================================================
-// SECTION 6: MAIN RESOLVER
+// SECTION 7: MAIN RESOLVER
 // ============================================================================
 
 module.exports = {

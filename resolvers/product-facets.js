@@ -1,5 +1,5 @@
 /**
- * Citisignal_productFacets Resolver
+ * PRODUCT FACETS RESOLVER
  * 
  * Returns available filter options (facets) for product listings.
  * Separate from product cards to follow single responsibility principle.
@@ -7,14 +7,21 @@
  * SERVICE SELECTION:
  * - With search text: Use Live Search for AI-aware facets
  * - Without search: Use Catalog Service for category facets
+ * 
+ * NOTE: All helpers must be inline due to mesh architecture limitations.
  */
 
 // ============================================================================
-// SECTION 1: FILTER BUILDERS
+// SECTION 1: CONSTANTS
 // ============================================================================
 
+const DEFAULT_PAGE_SIZE = 24;
 const DEFAULT_MAX_PRICE = 999999;
 const DEFAULT_MIN_PRICE = 0;
+
+// ============================================================================
+// SECTION 2: FILTER CONVERSION
+// ============================================================================
 
 
 const buildLiveSearchFilters = (filter) => {
@@ -50,7 +57,7 @@ const buildLiveSearchFilters = (filter) => {
 };
 
 // ============================================================================
-// SECTION 2: FACET TRANSFORMATION
+// SECTION 3: FACET TRANSFORMATION
 // ============================================================================
 
 const cleanAttributeName = (name) => {
@@ -76,14 +83,14 @@ const getFacetTitle = (attribute, label) => {
 
 
 // ============================================================================
-// SECTION 3: SERVICE SELECTION
+// SECTION 4: SERVICE SELECTION
 // ============================================================================
 
 // Always use Live Search for facets since Catalog doesn't support them
 const shouldUseLiveSearch = () => true;
 
 // ============================================================================
-// SECTION 4: GRAPHQL QUERY
+// SECTION 5: SERVICE QUERIES
 // ============================================================================
 
 // Live Search uses 'facets' with different structure
@@ -103,7 +110,7 @@ const LIVE_SEARCH_FACETS_QUERY = `{
 
 
 // ============================================================================
-// SECTION 5: MAIN RESOLVER
+// SECTION 6: MAIN RESOLVER
 // ============================================================================
 
 module.exports = {
@@ -139,7 +146,7 @@ module.exports = {
               return {
                 title: facet.title || getFacetTitle(facet.attribute, null),
                 key: cleanAttr,
-                type: 'checkbox',
+                type: 'list',
                 options: options.filter(opt => opt.count > 0)
               };
             }).filter(facet => facet.options.length > 0) || [];

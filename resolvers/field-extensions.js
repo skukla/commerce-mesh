@@ -1,5 +1,5 @@
 /**
- * Field Extensions for Adobe Catalog Service Types
+ * FIELD EXTENSIONS FOR CATALOG SERVICE TYPES
  * 
  * This file extends native Adobe Catalog Service GraphQL types with computed fields
  * that provide cleaner, more business-friendly data transformations.
@@ -13,27 +13,25 @@
  * - is_on_sale: Boolean indicating if product has a discount
  * - display_price/display_currency: Formatted pricing fields
  * - discount_percentage: Calculated discount percentage
- * - specifications: Cleaned product attributes
  * - secure_image/secure_images: Ensure HTTPS URLs for images
+ * 
+ * NOTE: All helpers must be inline due to mesh architecture limitations.
  */
 
-// Helper functions (must be duplicated due to API Mesh limitations)
+// ============================================================================
+// SECTION 1: CONSTANTS
+// ============================================================================
+
+// No specific constants needed for field extensions
+
+// ============================================================================
+// SECTION 2: ATTRIBUTE UTILITIES
+// ============================================================================
+
 const cleanAttributeName = (name) => {
   if (!name) return '';
   // Remove cs_ prefix if present
   return name.startsWith('cs_') ? name.substring(3) : name;
-};
-
-const ensureHttpsUrl = (url) => {
-  if (!url || typeof url !== 'string') return url;
-  
-  // Handle protocol-relative URLs (//domain.com)
-  if (url.startsWith('//')) {
-    return 'https:' + url;
-  }
-  
-  // Convert HTTP to HTTPS for secure delivery
-  return url.replace(/^http:\/\//, 'https://');
 };
 
 const extractAttributeValue = (attributes, attributeName, defaultValue = '') => {
@@ -50,6 +48,25 @@ const extractAttributeValue = (attributes, attributeName, defaultValue = '') => 
   return attr?.value || defaultValue;
 };
 
+// ============================================================================
+// SECTION 3: URL UTILITIES
+// ============================================================================
+
+const ensureHttpsUrl = (url) => {
+  if (!url || typeof url !== 'string') return url;
+  
+  // Handle protocol-relative URLs (//domain.com)
+  if (url.startsWith('//')) {
+    return 'https:' + url;
+  }
+  
+  // Convert HTTP to HTTPS for secure delivery
+  return url.replace(/^http:\/\//, 'https://');
+};
+
+// ============================================================================
+// SECTION 4: OPTION EXTRACTION
+// ============================================================================
 
 const extractOptionByTitle = (options, title) => {
   if (!options) return null;
@@ -69,6 +86,10 @@ const extractColorOptions = (options) => {
   })) || [];
 };
 
+// ============================================================================
+// SECTION 5: PRICING UTILITIES
+// ============================================================================
+
 const isOnSale = (regularPrice, finalPrice) => {
   return finalPrice < regularPrice;
 };
@@ -80,6 +101,10 @@ const calculateDiscountPercentage = (regularPrice, finalPrice) => {
   const discount = ((regularPrice - finalPrice) / regularPrice) * 100;
   return Math.round(discount * 10) / 10; // Round to 1 decimal place
 };
+
+// ============================================================================
+// SECTION 6: FIELD EXTENSIONS
+// ============================================================================
 
 module.exports = {
   resolvers: {

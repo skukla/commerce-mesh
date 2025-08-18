@@ -7,7 +7,20 @@
  * SERVICE SELECTION:
  * - Commerce Core: Has complete category hierarchy with parent/child relationships
  * - Live Search/Catalog: Only have flat category lists for filtering
+ * 
+ * NOTE: All helpers must be inline due to mesh architecture limitations.
  */
+
+// ============================================================================
+// SECTION 1: CONSTANTS
+// ============================================================================
+
+const DEFAULT_HEADER_NAV_ITEMS = 6;
+const DEFAULT_FOOTER_NAV_ITEMS = 4;
+
+// ============================================================================
+// SECTION 2: CATEGORY TRANSFORMATION
+// ============================================================================
 
 /**
  * Transform Commerce category to our Citisignal_CategoryItem type
@@ -33,6 +46,10 @@ const transformCategory = (category) => {
   };
 };
 
+// ============================================================================
+// SECTION 3: NAVIGATION FILTERING
+// ============================================================================
+
 /**
  * Filter categories based on visibility settings
  */
@@ -57,7 +74,7 @@ const filterCategories = (categories, includeInactive) => {
 /**
  * Transform categories for header navigation - returns flat array for menus
  */
-const transformForHeaderNav = (categories, maxItems = 6) => {
+const transformForHeaderNav = (categories, maxItems = DEFAULT_HEADER_NAV_ITEMS) => {
   if (!categories || !Array.isArray(categories)) return [];
   
   return categories
@@ -74,7 +91,7 @@ const transformForHeaderNav = (categories, maxItems = 6) => {
 /**
  * Transform categories for footer navigation - returns limited list
  */
-const transformForFooterNav = (categories, maxItems = 4) => {
+const transformForFooterNav = (categories, maxItems = DEFAULT_FOOTER_NAV_ITEMS) => {
   if (!categories || !Array.isArray(categories)) return [];
   
   return categories
@@ -86,6 +103,10 @@ const transformForFooterNav = (categories, maxItems = 4) => {
       label: cat.label
     }));
 };
+
+// ============================================================================
+// SECTION 4: MAIN RESOLVER
+// ============================================================================
 
 module.exports = {
   resolvers: {

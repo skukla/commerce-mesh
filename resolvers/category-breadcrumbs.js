@@ -7,7 +7,19 @@
  * SERVICE SELECTION:
  * - Commerce Core: Has full category hierarchy with breadcrumb support
  * - Live Search/Catalog: No breadcrumb functionality
+ * 
+ * NOTE: All helpers must be inline due to mesh architecture limitations.
  */
+
+// ============================================================================
+// SECTION 1: CONSTANTS
+// ============================================================================
+
+// No specific constants needed for breadcrumbs
+
+// ============================================================================
+// SECTION 2: BREADCRUMB TRANSFORMATION
+// ============================================================================
 
 /**
  * Transform Commerce breadcrumb to our Citisignal_BreadcrumbItem type
@@ -54,6 +66,30 @@ const buildBreadcrumbTrail = (category) => {
   
   return breadcrumbs;
 };
+
+// ============================================================================
+// SECTION 3: CATEGORY SEARCH
+// ============================================================================
+
+/**
+ * Find category by URL key in the category tree
+ */
+const findCategoryByUrlKey = (categories, urlKey) => {
+  for (const cat of categories) {
+    if (cat.url_key === urlKey) {
+      return cat;
+    }
+    if (cat.children) {
+      const found = findCategoryByUrlKey(cat.children, urlKey);
+      if (found) return found;
+    }
+  }
+  return null;
+};
+
+// ============================================================================
+// SECTION 4: MAIN RESOLVER
+// ============================================================================
 
 module.exports = {
   resolvers: {
@@ -121,19 +157,6 @@ module.exports = {
 
           // Find the category by URL key in the tree
           let category = null;
-          
-          function findCategoryByUrlKey(categories, urlKey) {
-            for (const cat of categories) {
-              if (cat.url_key === urlKey) {
-                return cat;
-              }
-              if (cat.children) {
-                const found = findCategoryByUrlKey(cat.children, urlKey);
-                if (found) return found;
-              }
-            }
-            return null;
-          }
           
           if (Array.isArray(result)) {
             category = findCategoryByUrlKey(result, categoryUrlKey);

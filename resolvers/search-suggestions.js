@@ -1,11 +1,26 @@
 /**
- * Citisignal_searchSuggestions Resolver
+ * SEARCH SUGGESTIONS RESOLVER
  * 
  * Provides quick product suggestions for search autocomplete using Live Search.
  * Returns top 5 products matching the search phrase.
+ * 
+ * SERVICE SELECTION:
+ * - Live Search: AI-powered search with better relevance
+ * - Catalog Service: No autocomplete-specific API
+ * 
+ * NOTE: All helpers must be inline due to mesh architecture limitations.
  */
 
-// Helper function to ensure HTTPS URLs
+// ============================================================================
+// SECTION 1: CONSTANTS
+// ============================================================================
+
+const SUGGESTIONS_LIMIT = 5;
+
+// ============================================================================
+// SECTION 2: URL UTILITIES
+// ============================================================================
+
 const ensureHttpsUrl = (url) => {
   if (!url || typeof url !== 'string') return url;
   
@@ -17,12 +32,19 @@ const ensureHttpsUrl = (url) => {
   return url.replace(/^http:\/\//, 'https://');
 };
 
-// Helper function to format price
+// ============================================================================
+// SECTION 3: PRICE UTILITIES
+// ============================================================================
+
 const formatPrice = (amount) => {
   if (amount === null || amount === undefined) return null;
   // Add comma formatting for thousands
   return `$${amount.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`;
 };
+
+// ============================================================================
+// SECTION 4: MAIN RESOLVER
+// ============================================================================
 
 module.exports = {
   resolvers: {
@@ -39,7 +61,7 @@ module.exports = {
               root: {},
               args: {
                 phrase: args.phrase,
-                page_size: 5, // Quick suggestions
+                page_size: SUGGESTIONS_LIMIT,
                 current_page: 1
               },
               context,
