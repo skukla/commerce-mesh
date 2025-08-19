@@ -63,6 +63,43 @@ const buildCatalogFilters = (categoryId, pageFilter) => {
   return filters;
 };
 
+/**
+ * Build filters for Live Search
+ * Live Search uses 'categories' instead of 'categoryPath'
+ */
+const buildLiveSearchFilters = (categoryId, pageFilter) => {
+  const filters = [];
+  
+  // Always add category filter if provided
+  if (categoryId) {
+    filters.push({ attribute: 'categories', in: [categoryId] });
+  }
+  
+  // Add page filters if provided
+  if (pageFilter) {
+    if (pageFilter.manufacturer) {
+      filters.push({ attribute: 'cs_manufacturer', in: [pageFilter.manufacturer] });
+    }
+    if (pageFilter.priceMin !== undefined || pageFilter.priceMax !== undefined) {
+      filters.push({
+        attribute: 'price',
+        range: {
+          from: pageFilter.priceMin || DEFAULT_MIN_PRICE,
+          to: pageFilter.priceMax || DEFAULT_MAX_PRICE
+        }
+      });
+    }
+    if (pageFilter.memory) {
+      filters.push({ attribute: 'memory', in: pageFilter.memory });
+    }
+    if (pageFilter.colors) {
+      filters.push({ attribute: 'color', in: pageFilter.colors });
+    }
+  }
+  
+  return filters;
+};
+
 // ============================================================================
 // SECTION 3: ATTRIBUTE EXTRACTION
 // ============================================================================
@@ -480,13 +517,13 @@ const fetchProducts = async (context, args) => {
  * Fetch facets from Live Search
  */
 const fetchFacets = async (context, args) => {
-  const { phrase, catalogFilters } = args;
+  const { phrase, liveSearchFilters } = args;
   
   const result = await context.LiveSearchSandbox.Query.Search_productSearch({
     root: {},
     args: {
       phrase: phrase || '',
-      filter: catalogFilters,
+      filter: liveSearchFilters,
       page_size: 1,
       current_page: 1
     },
@@ -498,7 +535,10 @@ const fetchFacets = async (context, args) => {
         buckets {
           title
           __typename
-          ... on Search_ScalarBucket { id }
+          ... on Search_ScalarBucket { 
+            id 
+            count
+          }
         }
       }
     }`
@@ -507,12 +547,12 @@ const fetchFacets = async (context, args) => {
   return {
     facets: result?.facets?.map(facet => ({
       title: facet.title,
-      key: facet.attribute,
+      key: cleanAttributeName(facet.attribute),
       type: 'list',
       options: facet.buckets?.map(bucket => ({
         id: bucket.id || bucket.title,
         name: bucket.title,
-        count: 0
+        count: bucket.count || 0
       })) || []
     })) || []
   };
@@ -591,12 +631,13 @@ module.exports = {
           
           // Build filters for services - category is separate from page filters
           const catalogFilters = buildCatalogFilters(category, filter);
+          const liveSearchFilters = buildLiveSearchFilters(category, filter);
           
           // Execute all queries in parallel for optimal SSR performance
           const [navResult, productsResult, facetsResult, breadcrumbsResult, categoryInfoResult] = await Promise.all([
             fetchNavigation(context, category),
             fetchProducts(context, { phrase, catalogFilters, pageSize, currentPage, sort }),
-            fetchFacets(context, { phrase, catalogFilters }),
+            fetchFacets(context, { phrase, liveSearchFilters }),
             fetchBreadcrumbs(context, category),
             fetchCategoryInfo(context, category)
           ]);
