@@ -111,7 +111,6 @@ module.exports = {
       "./resolvers/field-extensions.js",
       "./resolvers/category-navigation.js",
       "./resolvers/category-breadcrumbs.js",
-      "./resolvers/product-page.js",
       "./resolvers/category-page.js"
     ],
     responseConfig: {

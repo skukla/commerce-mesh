@@ -1,8 +1,13 @@
 /**
  * CATEGORY PAGE DATA RESOLVER
  * 
- * Universal resolver for all category pages (phones, watches, accessories, etc.)
+ * Universal resolver for all product listing pages (category pages, search results, all products).
  * Optimized for server-side rendering to deliver complete page data in one query.
+ * 
+ * This handles ALL product listing scenarios:
+ * - Category pages (/phones, /watches)
+ * - Search results (no specific category)
+ * - All products view
  * 
  * This resolver demonstrates the SSR-first pattern where:
  * - Initial page load gets everything from one query (fast SSR)
@@ -33,46 +38,9 @@ const DEFAULT_MIN_PRICE = 0;
 const buildCatalogFilters = (categoryId, pageFilter) => {
   const filters = [];
   
-  // Always add category filter if provided
+  // Add category filter if provided (optional for product page)
   if (categoryId) {
     filters.push({ attribute: 'categoryPath', in: [categoryId] });
-  }
-  
-  // Add page filters if provided
-  if (pageFilter) {
-    if (pageFilter.manufacturer) {
-      filters.push({ attribute: 'cs_manufacturer', in: [pageFilter.manufacturer] });
-    }
-    if (pageFilter.priceMin !== undefined || pageFilter.priceMax !== undefined) {
-      filters.push({
-        attribute: 'price',
-        range: {
-          from: pageFilter.priceMin || DEFAULT_MIN_PRICE,
-          to: pageFilter.priceMax || DEFAULT_MAX_PRICE
-        }
-      });
-    }
-    if (pageFilter.memory) {
-      filters.push({ attribute: 'memory', in: pageFilter.memory });
-    }
-    if (pageFilter.colors) {
-      filters.push({ attribute: 'color', in: pageFilter.colors });
-    }
-  }
-  
-  return filters;
-};
-
-/**
- * Build filters for Live Search
- * Live Search uses 'categories' instead of 'categoryPath'
- */
-const buildLiveSearchFilters = (categoryId, pageFilter) => {
-  const filters = [];
-  
-  // Always add category filter if provided
-  if (categoryId) {
-    filters.push({ attribute: 'categories', in: [categoryId] });
   }
   
   // Add page filters if provided
@@ -517,13 +485,13 @@ const fetchProducts = async (context, args) => {
  * Fetch facets from Live Search
  */
 const fetchFacets = async (context, args) => {
-  const { phrase, liveSearchFilters } = args;
+  const { phrase, catalogFilters } = args;
   
   const result = await context.LiveSearchSandbox.Query.Search_productSearch({
     root: {},
     args: {
       phrase: phrase || '',
-      filter: liveSearchFilters,
+      filter: catalogFilters,
       page_size: 1,
       current_page: 1
     },
@@ -547,12 +515,12 @@ const fetchFacets = async (context, args) => {
   return {
     facets: result?.facets?.map(facet => ({
       title: facet.title,
-      key: cleanAttributeName(facet.attribute),
+      key: cleanAttributeName(facet.attribute),  // Clean the cs_ prefix
       type: 'list',
       options: facet.buckets?.map(bucket => ({
         id: bucket.id || bucket.title,
         name: bucket.title,
-        count: bucket.count || 0
+        count: bucket.count || 0  // Use actual count from bucket
       })) || []
     })) || []
   };
@@ -610,66 +578,65 @@ const fetchCategoryInfo = async (context, categoryId) => {
 // SECTION 9: MAIN RESOLVER
 // ============================================================================
 
+// Main handler for both queries
+const handleCategoryPageQuery = async (root, args, context, info) => {
+  try {
+    const {
+      category,
+      phrase,
+      filter,
+      sort,
+      pageSize = DEFAULT_PAGE_SIZE,
+      currentPage = 1
+    } = args;
+    
+    // Category is optional (for search results, all products, etc)
+    // Build filters for services - category is separate from page filters
+    const catalogFilters = buildCatalogFilters(category, filter);
+    
+    // Execute all queries in parallel for optimal SSR performance
+    // Navigation and category info are always fetched, even without a category
+    const [navResult, productsResult, facetsResult, breadcrumbsResult, categoryInfoResult] = await Promise.all([
+      fetchNavigation(context, category),
+      fetchProducts(context, { phrase, catalogFilters, pageSize, currentPage, sort }),
+      fetchFacets(context, { phrase, catalogFilters }),
+      category ? fetchBreadcrumbs(context, category) : Promise.resolve({ items: [] }),
+      category ? fetchCategoryInfo(context, category) : Promise.resolve({ name: 'Products', urlKey: '' })
+    ]);
+    
+    // Return complete page data for SSR
+    return {
+      navigation: navResult,
+      products: productsResult,
+      facets: facetsResult,
+      breadcrumbs: breadcrumbsResult,
+      categoryInfo: categoryInfoResult
+    };
+    
+  } catch (error) {
+    console.error('Error in category page query:', error.message);
+    
+    // Return safe defaults for SSR resilience
+    return {
+      navigation: { headerNav: [], footerNav: [] },
+      products: { 
+        items: [], 
+        totalCount: 0, 
+        hasMoreItems: false,
+        currentPage: 1,
+        page_info: { current_page: 1, page_size: DEFAULT_PAGE_SIZE, total_pages: 1 }
+      },
+      facets: { facets: [] },
+      breadcrumbs: { items: [] },
+      categoryInfo: { name: 'Products', urlKey: '' }
+    };
+  }
+};
+
 module.exports = {
   resolvers: {
     Query: {
-      Citisignal_categoryPageData: async (root, args, context, info) => {
-        try {
-          const {
-            category,
-            phrase,
-            filter,
-            sort,
-            pageSize = DEFAULT_PAGE_SIZE,
-            currentPage = 1
-          } = args;
-          
-          // Category is now required
-          if (!category) {
-            throw new Error('Category is required for categoryPageData query');
-          }
-          
-          // Build filters for services - category is separate from page filters
-          const catalogFilters = buildCatalogFilters(category, filter);
-          const liveSearchFilters = buildLiveSearchFilters(category, filter);
-          
-          // Execute all queries in parallel for optimal SSR performance
-          const [navResult, productsResult, facetsResult, breadcrumbsResult, categoryInfoResult] = await Promise.all([
-            fetchNavigation(context, category),
-            fetchProducts(context, { phrase, catalogFilters, pageSize, currentPage, sort }),
-            fetchFacets(context, { phrase, liveSearchFilters }),
-            fetchBreadcrumbs(context, category),
-            fetchCategoryInfo(context, category)
-          ]);
-          
-          // Return complete page data for SSR
-          return {
-            navigation: navResult,
-            products: productsResult,
-            facets: facetsResult,
-            breadcrumbs: breadcrumbsResult,
-            categoryInfo: categoryInfoResult
-          };
-          
-        } catch (error) {
-          console.error('Error in Citisignal_categoryPageData:', error.message);
-          
-          // Return safe defaults for SSR resilience
-          return {
-            navigation: { headerNav: [], footerNav: [] },
-            products: { 
-              items: [], 
-              totalCount: 0, 
-              hasMoreItems: false,
-              currentPage: 1,
-              page_info: { current_page: 1, page_size: DEFAULT_PAGE_SIZE, total_pages: 1 }
-            },
-            facets: { facets: [] },
-            breadcrumbs: { items: [] },
-            categoryInfo: { name: 'Category', urlKey: '' }
-          };
-        }
-      }
+      Citisignal_categoryPageData: handleCategoryPageQuery
     }
   }
 };
