@@ -180,6 +180,100 @@ const shouldUseLiveSearch = (args) => {
 // DATA TRANSFORMATION & BUSINESS LOGIC - The reshaping magic
 // ============================================================================
 
+// ============================================================================
+// BUSINESS LOGIC HELPERS - Reusable transformation functions
+// ============================================================================
+
+/**
+ * Clean technical prefixes from attribute names
+ */
+const cleanAttributeName = (name) => {
+  if (!name) return name;
+  return name.startsWith('cs_') ? name.substring(3) : name;
+};
+
+/**
+ * Format price for display with currency symbol and thousands separator
+ */
+const formatPrice = (amount) => {
+  if (!amount) return null;
+  return `$${amount.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`;
+};
+
+/**
+ * Calculate discount percentage from regular and final prices
+ */
+const calculateDiscountPercent = (regularPrice, finalPrice) => {
+  if (!regularPrice || !finalPrice || finalPrice >= regularPrice) return null;
+  return Math.round(((regularPrice - finalPrice) / regularPrice) * 100);
+};
+
+/**
+ * Ensure URL uses HTTPS protocol
+ */
+const ensureHttps = (url) => {
+  if (!url) return url;
+  return url.startsWith('http://') ? url.replace('http://', 'https://') : url;
+};
+
+/**
+ * Extract price value from nested price structure
+ */
+const extractPriceValue = (product, priceType, isComplex) => {
+  if (isComplex) {
+    return priceType === 'regular'
+      ? product.priceRange?.minimum?.regular?.amount?.value
+      : product.priceRange?.minimum?.final?.amount?.value;
+  }
+  return priceType === 'regular'
+    ? product.price?.regular?.amount?.value
+    : product.price?.final?.amount?.value;
+};
+
+/**
+ * Find attribute value by name (checks both with and without cs_ prefix)
+ */
+const findAttributeValue = (attributes, name) => {
+  if (!attributes || !Array.isArray(attributes)) return null;
+  const attr = attributes.find(a => 
+    a.name === name || a.name === `cs_${name}`
+  );
+  return attr?.value;
+};
+
+/**
+ * Extract and transform variant options from product
+ * Dynamically handles all cs_ prefixed options
+ */
+const extractVariantOptions = (options) => {
+  const variantOptions = {};
+  
+  if (!options || !Array.isArray(options)) {
+    return variantOptions;
+  }
+  
+  options.forEach(option => {
+    if (option.id?.startsWith('cs_')) {
+      // Clean the option name using helper
+      const cleanOptionName = cleanAttributeName(option.id);
+      
+      // Special handling for color options (include hex values)
+      if (cleanOptionName === 'color' && option.values) {
+        variantOptions.colors = option.values.map(v => ({
+          name: v.title,
+          hex: v.value || '#000000'
+        }));
+      } 
+      // Standard handling for other options (memory, storage, etc.)
+      else if (option.values) {
+        variantOptions[cleanOptionName] = option.values.map(v => v.title);
+      }
+    }
+  });
+  
+  return variantOptions;
+};
+
 /**
  * Transform complex Adobe product structure to our custom shape
  * 
@@ -222,56 +316,17 @@ const transformProductToCard = (product) => {
   
   // --- EXTRACT FROM NESTED STRUCTURES ---
   const isComplex = product.__typename === 'Catalog_ComplexProductView';
-  
-  // Navigate price structure (different for simple vs complex products)
-  const regularPrice = isComplex 
-    ? product.priceRange?.minimum?.regular?.amount?.value
-    : product.price?.regular?.amount?.value;
-    
-  const finalPrice = isComplex 
-    ? product.priceRange?.minimum?.final?.amount?.value
-    : product.price?.final?.amount?.value;
-  
-  // Extract manufacturer from attributes array
-  const manufacturerAttr = product.attributes?.find(a => 
-    a.name === 'manufacturer' || a.name === 'cs_manufacturer'
-  );
-  const manufacturer = manufacturerAttr?.value;
+  const regularPrice = extractPriceValue(product, 'regular', isComplex);
+  const finalPrice = extractPriceValue(product, 'final', isComplex);
+  const manufacturer = findAttributeValue(product.attributes, 'manufacturer');
   
   // --- APPLY BUSINESS LOGIC ---
-  
-  // Calculate sale status and discount
   const isOnSale = regularPrice && finalPrice && finalPrice < regularPrice;
-  const discountPercent = isOnSale 
-    ? Math.round(((regularPrice - finalPrice) / regularPrice) * 100)
-    : null;
-  
-  // Format prices for display
-  const formatPrice = (amount) => {
-    if (!amount) return null;
-    return `$${amount.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`;
-  };
-  
-  // Clean technical prefixes
-  const cleanManufacturer = manufacturer?.startsWith('cs_') 
-    ? manufacturer.substring(3) 
-    : manufacturer;
-  
-  // Extract variant options for complex products
-  const memoryOption = product.options?.find(opt => opt.title === 'Memory');
-  const memoryValues = memoryOption?.values?.map(v => v.title) || [];
-  
-  const colorOption = product.options?.find(opt => opt.title === 'Color');
-  const colorValues = colorOption?.values?.map(v => ({
-    name: v.title,
-    hex: v.value || '#000000'
-  })) || [];
-  
-  // Ensure HTTPS for images
+  const discountPercent = calculateDiscountPercent(regularPrice, finalPrice);
+  const cleanManufacturer = cleanAttributeName(manufacturer);
+  const variantOptions = extractVariantOptions(product.options);
   const imageUrl = product.images?.[0]?.url;
-  const secureImageUrl = imageUrl?.startsWith('http://') 
-    ? imageUrl.replace('http://', 'https://')
-    : imageUrl;
+  const secureImageUrl = ensureHttps(imageUrl);
   
   // --- BUILD CUSTOM RESPONSE SHAPE ---
   return {
@@ -294,9 +349,8 @@ const transformProductToCard = (product) => {
       altText: product.images[0].label || product.name
     } : null,
     
-    // Variant options (only if they exist)
-    memory: memoryValues.length > 0 ? memoryValues : null,
-    colors: colorValues.length > 0 ? colorValues : null
+    // Variant options - dynamically included based on what's available
+    ...variantOptions
   };
 };
 
@@ -417,6 +471,7 @@ const executeSearchMode = async (context, args) => {
                 }
               }
               options {
+                id
                 title
                 values {
                   ... on Catalog_ProductViewOptionValueSwatch {
@@ -496,6 +551,7 @@ const executeCatalogMode = async (context, args) => {
               }
             }
             options {
+              id
               title
               values {
                 ... on Catalog_ProductViewOptionValueSwatch {
