@@ -1,210 +1,265 @@
 /**
- * CATEGORY NAVIGATION RESOLVER
+ * CITISIGNAL CATEGORY NAVIGATION - CUSTOM NAVIGATION API
  * 
- * Fetches hierarchical category tree from Commerce Core GraphQL
- * for building dynamic navigation menus.
+ * This resolver demonstrates transforming Adobe Commerce's complex category tree
+ * into clean, navigation-ready data structures for headers and footers.
  * 
- * SERVICE SELECTION:
- * - Commerce Core: Has complete category hierarchy with parent/child relationships
- * - Live Search/Catalog: Only have flat category lists for filtering
- * 
- * NOTE: All helpers must be inline due to mesh architecture limitations.
+ * What Adobe gives us: Deeply nested category hierarchy with technical fields
+ * What we deliver: Clean navigation items ready for UI menus
  */
 
 // ============================================================================
-// SECTION 1: CONSTANTS
-// ============================================================================
-
-const DEFAULT_HEADER_NAV_ITEMS = 6;
-const DEFAULT_FOOTER_NAV_ITEMS = 4;
-
-// ============================================================================
-// SECTION 2: CATEGORY TRANSFORMATION
+// CUSTOM QUERY DEFINITION - The navigation API we're creating
 // ============================================================================
 
 /**
- * Transform Commerce category to our Citisignal_CategoryItem type
+ * Our Custom Query: Citisignal_categoryNavigation
+ * 
+ * INPUT:
+ *   query {
+ *     Citisignal_categoryNavigation(
+ *       type: HEADER       // or FOOTER
+ *       maxItems: 6        // Limit items for clean UI
+ *     )
+ *   }
+ * 
+ * OUTPUT - Our navigation-ready structure:
+ *   {
+ *     navigation: [{
+ *       // Clean navigation item
+ *       id: "4"
+ *       name: "Phones"
+ *       href: "/phones"           // Ready-to-use link
+ *       label: "Phones"           // Display text
+ *       level: 2                  // For styling nested menus
+ *       position: 1               // Display order
+ *       children: [{              // Nested navigation
+ *         name: "iPhones"
+ *         href: "/phones/iphones"
+ *       }]
+ *     }]
+ *   }
+ * 
+ */
+
+// ============================================================================
+// CONFIGURATION - Business rules for navigation
+// ============================================================================
+
+const DEFAULT_HEADER_NAV_ITEMS = 6;  // Keep header clean
+const DEFAULT_FOOTER_NAV_ITEMS = 4;  // Smaller footer menu
+
+// ============================================================================
+// DATA TRANSFORMATION - Complex hierarchy to clean navigation
+// ============================================================================
+
+/**
+ * Transform Adobe's category structure to navigation items
+ * 
+ * ADOBE'S COMMERCE STRUCTURE:
+ * {
+ *   uid: "Mg==",
+ *   id: 2,
+ *   name: "Default Category",
+ *   url_path: "default-category",
+ *   url_key: "default-category",
+ *   include_in_menu: 1,
+ *   is_active: true,
+ *   level: 1,
+ *   position: 0,
+ *   product_count: 42,
+ *   children: [{
+ *     uid: "NA==",
+ *     name: "Phones",
+ *     url_path: "phones",
+ *     include_in_menu: 1,
+ *     children: [...]
+ *   }]
+ * }
+ * 
+ * OUR CLEAN NAVIGATION ITEM:
+ * {
+ *   id: "4",
+ *   name: "Phones",
+ *   href: "/phones",        // Built from url_path
+ *   label: "Phones",        // Ready for display
+ *   level: 2,
+ *   position: 1,
+ *   children: [...]         // Recursively transformed
+ * }
  */
 const transformCategory = (category) => {
   if (!category) return null;
   
+  // Build navigation-ready fields
+  const href = category.url_path ? `/${category.url_path}` : '/';
+  
   return {
-    id: category.id || category.uid,
+    // Essential navigation fields
+    id: String(category.id || category.uid),
     name: category.name || '',
-    urlPath: category.url_path || '',
-    urlKey: category.url_key || '',
+    href: href,                          // Ready-to-use link
+    label: category.name || '',          // Display text
+    
+    // Hierarchy and ordering
     level: category.level || 0,
     position: category.position || 0,
+    
+    // Metadata for filtering
     includeInMenu: category.include_in_menu === 1 || category.include_in_menu === true,
     isActive: category.is_active === true || category.is_active === 1,
-    children: category.children?.map(transformCategory).filter(Boolean) || [],
     productCount: category.product_count || 0,
-    parentId: category.parent_id || null,
-    // Navigation-ready fields
-    href: `/${category.url_path || ''}`,
-    label: category.name || ''
+    
+    // Nested navigation (recursive transformation)
+    children: category.children?.map(transformCategory).filter(Boolean) || [],
+    
+    // Additional fields for advanced use
+    urlPath: category.url_path || '',
+    urlKey: category.url_key || '',
+    parentId: category.parent_id || null
   };
 };
 
 // ============================================================================
-// SECTION 3: NAVIGATION FILTERING
+// NAVIGATION FILTERING - Apply business rules
 // ============================================================================
 
 /**
- * Filter categories based on visibility settings
+ * Filter categories for navigation display
+ * Business rules: Only active, menu-enabled categories
  */
-const filterCategories = (categories, includeInactive) => {
+const filterForNavigation = (categories, maxItems = 10) => {
   if (!categories || !Array.isArray(categories)) return [];
   
   return categories
-    .filter(cat => {
-      // Always filter out categories not in menu (check for 1 or true)
-      if (!cat.include_in_menu || cat.include_in_menu === 0) return false;
-      // Optionally filter out inactive categories
-      if (!includeInactive && !cat.is_active) return false;
-      return true;
-    })
+    .filter(cat => 
+      cat.includeInMenu &&     // Admin marked for menu
+      cat.isActive &&          // Currently active
+      cat.name &&              // Has a name to display
+      cat.href                 // Has a valid URL
+    )
+    .sort((a, b) => a.position - b.position)  // Respect admin ordering
+    .slice(0, maxItems)        // Limit for clean UI
     .map(cat => ({
-      ...transformCategory(cat),
+      ...cat,
       // Recursively filter children
-      children: filterCategories(cat.children, includeInactive)
+      children: filterForNavigation(cat.children, maxItems)
     }));
 };
 
 /**
- * Transform categories for header navigation - returns flat array for menus
+ * Get navigation items by type (header vs footer)
  */
-const transformForHeaderNav = (categories, maxItems = DEFAULT_HEADER_NAV_ITEMS) => {
-  if (!categories || !Array.isArray(categories)) return [];
+const getNavigationByType = (categories, type, maxItems) => {
+  // Determine item limit based on navigation type
+  const limit = maxItems || (
+    type === 'FOOTER' ? DEFAULT_FOOTER_NAV_ITEMS : DEFAULT_HEADER_NAV_ITEMS
+  );
   
-  return categories
-    .filter(cat => cat.includeInMenu && cat.isActive)
-    .sort((a, b) => a.position - b.position)
-    .slice(0, maxItems)
-    .map(cat => ({
-      href: cat.href,
-      label: cat.label,
-      category: 'shop'
-    }));
-};
-
-/**
- * Transform categories for footer navigation - returns limited list
- */
-const transformForFooterNav = (categories, maxItems = DEFAULT_FOOTER_NAV_ITEMS) => {
-  if (!categories || !Array.isArray(categories)) return [];
-  
-  return categories
-    .filter(cat => cat.includeInMenu && cat.isActive)
-    .sort((a, b) => a.position - b.position)
-    .slice(0, maxItems)
-    .map(cat => ({
-      href: cat.href,
-      label: cat.label
-    }));
+  // Filter and limit navigation items
+  return filterForNavigation(categories, limit);
 };
 
 // ============================================================================
-// SECTION 4: MAIN RESOLVER
+// QUERY EXECUTION - Get categories from Commerce
+// ============================================================================
+
+const executeCategoryNavigation = async (context, args) => {
+  // Query Adobe Commerce for category tree
+  const result = await context.CommerceGraphQL.Query.Commerce_categoryList({
+    root: {},
+    args: {
+      filters: {}  // Get all categories, we'll filter later
+    },
+    context,
+    selectionSet: `{
+      id
+      uid
+      name
+      url_path
+      url_key
+      include_in_menu
+      is_active
+      level
+      position
+      product_count
+      parent_id
+      children {
+        id
+        uid
+        name
+        url_path
+        url_key
+        include_in_menu
+        is_active
+        level
+        position
+        product_count
+        children {
+          id
+          uid
+          name
+          url_path
+          url_key
+          include_in_menu
+          is_active
+          level
+          position
+          product_count
+        }
+      }
+    }`
+  });
+  
+  // Transform to navigation structure
+  const transformed = result?.map(transformCategory).filter(Boolean) || [];
+  
+  // Apply navigation type filtering
+  return getNavigationByType(transformed, args.type, args.maxItems);
+};
+
+// ============================================================================
+// MAIN RESOLVER - Clean navigation API
 // ============================================================================
 
 module.exports = {
   resolvers: {
     Query: {
-      Citisignal_categoryNavigation: async (root, args, context, info) => {
-        try {
-          const { 
-            rootCategoryId,
-            includeInactive = false 
-          } = args;
-
-          // Query Commerce Core for category tree
-          // Commerce_categoryList returns an array of CategoryTree objects
-          const result = await context.CommerceGraphQL.Query.Commerce_categoryList({
-            root,
-            args: {},
-            context,
-            info,
-            selectionSet: `{
-              id
-              uid
-              name
-              url_path
-              url_key
-              level
-              position
-              include_in_menu
-              is_active
-              product_count
-              parent_id
-              children {
-                id
-                uid
-                name
-                url_path
-                url_key
-                level
-                position
-                include_in_menu
-                is_active
-                product_count
-                parent_id
-                children {
-                  id
-                  uid
-                  name
-                  url_path
-                  url_key
-                  level
-                  position
-                  include_in_menu
-                  is_active
-                  product_count
-                  parent_id
-                }
-              }
-            }`
-          });
-
-          // Result is an array of CategoryTree objects
-          // Get the root category or all top-level categories
-          let categories = [];
-          
-          if (Array.isArray(result)) {
-            // If we have a rootCategoryId, find that category
-            if (rootCategoryId) {
-              const rootCategory = result.find(cat => 
-                cat.id === rootCategoryId || cat.uid === rootCategoryId
-              );
-              categories = rootCategory?.children || [];
-            } else {
-              // Use first category's children (usually the store root)
-              categories = result[0]?.children || [];
-            }
+      Citisignal_categoryNavigation: {
+        resolve: async (root, args, context, info) => {
+          try {
+            // Get and transform navigation from Commerce
+            const navigation = await executeCategoryNavigation(context, args);
+            
+            // Create header nav items
+            const headerNav = navigation.slice(0, 5).map(cat => ({
+              href: cat.href,
+              label: cat.label,
+              category: cat.urlKey
+            }));
+            
+            // Create footer nav items
+            const footerNav = navigation.slice(0, 8).map(cat => ({
+              href: cat.href,
+              label: cat.label
+            }));
+            
+            // Return structure
+            return {
+              items: navigation || [],
+              headerNav: headerNav || [],
+              footerNav: footerNav || []
+            };
+            
+          } catch (error) {
+            console.error('Category navigation resolver error:', error);
+            // Return empty navigation on error (graceful degradation)
+            return { 
+              items: [],
+              headerNav: [],
+              footerNav: []
+            };
           }
-
-          // Transform and filter categories
-          const transformedCategories = filterCategories(
-            categories,
-            includeInactive
-          );
-
-          return {
-            items: transformedCategories,
-            // Pre-formatted navigation items for immediate use
-            headerNav: transformForHeaderNav(transformedCategories),
-            footerNav: transformForFooterNav(transformedCategories)
-          };
-
-        } catch (error) {
-          console.error('[CategoryNavigation] Error fetching categories:', error);
-          
-          // Return empty result on error (graceful degradation)
-          return {
-            items: [],
-            headerNav: [],
-            footerNav: []
-          };
         }
       }
     }
