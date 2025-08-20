@@ -45,8 +45,6 @@ type Citisignal_ProductCardResult {
   hasMoreItems: Boolean!
   currentPage: Int
   page_info: Citisignal_PageInfo
-  facets: [Citisignal_Facet]  # Only populated on page 1 to reduce duplication
-  aggregations: [Citisignal_Facet]  # Alias for facets to match frontend expectations
   _debug: String  # Debug information when requested
 }
 
