@@ -106,18 +106,7 @@ module.exports = {
       },
     ],
     // additionalTypeDefs will be added by build script from schema/*.graphql files
-    // Resolvers are explicitly listed for order control and security
-    // Remember to add new resolvers here when creating them
-    additionalResolvers: [
-      './resolvers/product-cards.js',
-      './resolvers/product-facets.js',
-      './resolvers/product-search-filter.js',
-      './resolvers/search-suggestions.js',
-      './resolvers/field-extensions.js',
-      './resolvers/category-navigation.js',
-      './resolvers/category-breadcrumbs.js',
-      './resolvers/category-page.js',
-    ],
+    // additionalResolvers will be added by build script from resolvers/*.js files
     responseConfig: {
       CORS: {
         credentials: true,
