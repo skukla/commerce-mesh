@@ -40,7 +40,11 @@ module.exports = {
               "Authorization": "{context.headers['Authorization']}"
             },
             schemaHeaders: {
-              "x-api-key": "{env.ADOBE_CATALOG_API_KEY}"
+              "x-api-key": "{env.ADOBE_CATALOG_API_KEY}",
+              "Magento-Environment-Id": "{env.ADOBE_COMMERCE_ENVIRONMENT_ID}",
+              "Magento-Website-Code": "{env.ADOBE_COMMERCE_WEBSITE_CODE}",
+              "Magento-Store-View-Code": "{env.ADOBE_COMMERCE_STORE_VIEW_CODE}",
+              "Magento-Store-Code": "{env.ADOBE_COMMERCE_STORE_CODE}"
             }
           }
         },
