@@ -245,7 +245,7 @@ const transformFacets = (facets) => {
     return {
       key: cleanAttribute,
       title: title,
-      type: facet.type || 'STANDARD',
+      type: 'checkbox',  // All facets use checkbox for multi-select filtering
       options: options
     };
   }).filter(facet => facet.options.length > 0); // Remove empty facets

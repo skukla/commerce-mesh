@@ -361,7 +361,7 @@ const transformFacets = (facets) => {
     return {
       key: cleanAttribute,
       title: title,
-      type: facet.type || 'STANDARD',
+      type: 'checkbox',  // All facets use checkbox for multi-select filtering
       options: facet.buckets?.map(bucket => ({
         id: bucket.title,      // Use title as ID
         name: bucket.title,    // Display name
@@ -437,14 +437,8 @@ const filterForNavigation = (categories, maxItems = 10) => {
 const buildBreadcrumbs = (category) => {
   const breadcrumbs = [];
   
-  // Always start with Home
-  breadcrumbs.push({
-    categoryId: null,
-    name: 'Home',
-    urlPath: '/',
-    level: 0
-  });
-  
+  // Don't add Home - the frontend already displays a home icon
+
   // Add parent categories
   if (category?.breadcrumbs) {
     category.breadcrumbs.forEach((crumb, index) => {
@@ -452,7 +446,7 @@ const buildBreadcrumbs = (category) => {
         categoryId: null,
         name: crumb.category_name || '',
         urlPath: crumb.category_url_path || '',
-        level: index + 1
+        level: index
       });
     });
   }

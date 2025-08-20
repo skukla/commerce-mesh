@@ -102,15 +102,7 @@ const transformBreadcrumb = (breadcrumb, isLast = false) => {
 const buildBreadcrumbTrail = (category) => {
   const breadcrumbs = [];
   
-  // Always start with Home (unless it's the home page)
-  if (category && category.level > 1) {
-    breadcrumbs.push({
-      categoryId: null,
-      name: 'Home',
-      urlPath: '/',
-      level: 0
-    });
-  }
+  // Don't add Home - the frontend already displays a home icon
   
   if (category) {
     // Add parent categories from breadcrumbs array
