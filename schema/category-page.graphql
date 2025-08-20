@@ -20,9 +20,9 @@ type Citisignal_CategoryPageData {
 
 extend type Query {
   Citisignal_categoryPageData(
-    category: String  # Optional - works for search results, all products, or category pages
-    phrase: String
-    filter: Citisignal_PageFilter  # Uses PageFilter without category field
+    categoryUrlKey: String  # Optional URL key like "phones" - omit for all products
+    phrase: String  # Optional search term within category
+    filter: Citisignal_PageFilter  # Additional filters (manufacturer, price, etc.)
     sort: Citisignal_SortInput
     pageSize: Int
     currentPage: Int

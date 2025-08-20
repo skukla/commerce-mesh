@@ -18,7 +18,7 @@
  * INPUT:
  *   query {
  *     Citisignal_categoryBreadcrumbs(
- *       categoryId: "phones"    // Category to get breadcrumbs for
+ *       categoryUrlKey: "phones"    // Category URL key to get breadcrumbs for
  *     )
  *   }
  * 
@@ -70,13 +70,10 @@ const transformBreadcrumb = (breadcrumb, isLast = false) => {
   const urlPath = breadcrumb.category_url_path || breadcrumb.url_path || '';
   
   return {
-    // Essential breadcrumb fields
-    name: breadcrumb.category_name || breadcrumb.name || '',
-    href: urlPath ? `/${urlPath}` : '/',
-    isActive: isLast,  // Mark the current page
-    
-    // Additional metadata
+    // Match the schema: Citisignal_BreadcrumbItem
     categoryId: breadcrumb.category_id || null,
+    name: breadcrumb.category_name || breadcrumb.name || '',
+    urlPath: urlPath ? `/${urlPath}` : '/',
     level: breadcrumb.category_level || breadcrumb.level || 0
   };
 };
@@ -108,9 +105,9 @@ const buildBreadcrumbTrail = (category) => {
   // Always start with Home (unless it's the home page)
   if (category && category.level > 1) {
     breadcrumbs.push({
+      categoryId: null,
       name: 'Home',
-      href: '/',
-      isActive: false,
+      urlPath: '/',
       level: 0
     });
   }
@@ -128,10 +125,9 @@ const buildBreadcrumbTrail = (category) => {
     // Add current category as the last breadcrumb
     if (category.name) {
       breadcrumbs.push({
+        categoryId: category.id || category.uid || null,
         name: category.name,
-        href: category.url_path ? `/${category.url_path}` : '/',
-        isActive: true,  // This is the current page
-        categoryId: category.id || category.uid,
+        urlPath: category.url_path ? `/${category.url_path}` : '/',
         level: category.level || breadcrumbs.length
       });
     }
@@ -145,7 +141,7 @@ const buildBreadcrumbTrail = (category) => {
 // ============================================================================
 
 const executeCategoryBreadcrumbs = async (context, args) => {
-  if (!args.categoryId) {
+  if (!args.categoryUrlKey) {
     return [];  // No category specified
   }
   
@@ -155,7 +151,7 @@ const executeCategoryBreadcrumbs = async (context, args) => {
       root: {},
       args: {
         filters: {
-          ids: { eq: args.categoryId }
+          url_key: { eq: args.categoryUrlKey }
         }
       },
       context,

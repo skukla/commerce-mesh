@@ -52,7 +52,7 @@ type Citisignal_ProductCardResult {
 
 # Filter input for product searches (includes category for standalone queries)
 input Citisignal_ProductFilter {
-  category: String
+  categoryUrlKey: String  # Category URL key like "phones" or "accessories"
   manufacturer: String
   memory: [String]
   colors: [String]
