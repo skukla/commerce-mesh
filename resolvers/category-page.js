@@ -399,18 +399,20 @@ const buildBreadcrumbs = (category) => {
   
   // Always start with Home
   breadcrumbs.push({
+    categoryId: null,
     name: 'Home',
-    href: '/',
-    isActive: false
+    urlPath: '/',
+    level: 0
   });
   
   // Add parent categories
   if (category?.breadcrumbs) {
-    category.breadcrumbs.forEach(crumb => {
+    category.breadcrumbs.forEach((crumb, index) => {
       breadcrumbs.push({
-        name: crumb.category_name,
-        href: `/${crumb.category_url_path}`,
-        isActive: false
+        categoryId: null,
+        name: crumb.category_name || '',
+        urlPath: crumb.category_url_path || '',
+        level: index + 1
       });
     });
   }
@@ -418,9 +420,10 @@ const buildBreadcrumbs = (category) => {
   // Add current category
   if (category) {
     breadcrumbs.push({
-      name: category.name,
-      href: `/${category.url_path}`,
-      isActive: true
+      categoryId: category.id || null,
+      name: category.name || '',
+      urlPath: category.url_path || '',
+      level: breadcrumbs.length
     });
   }
   
