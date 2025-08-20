@@ -20,7 +20,7 @@
  *     Citisignal_productFacets(
  *       phrase: "phone"          // Optional search term
  *       filter: {                // Current applied filters
- *         category: "phones"
+ *         categoryUrlKey: "phones"
  *         manufacturer: "Apple"
  *       }
  *     )
@@ -53,7 +53,7 @@
  * Transform our custom filters to service-specific formats
  * 
  * OUR FILTER FORMAT:
- *   filter: { category: "phones", manufacturer: "Apple" }
+ *   filter: { categoryUrlKey: "phones", manufacturer: "Apple" }
  * 
  * ADOBE'S REQUIRED FORMAT:
  *   filter: [
@@ -61,24 +61,51 @@
  *     { attribute: "cs_manufacturer", in: ["Apple"] }   // With prefix
  *   ]
  */
+/**
+ * Normalize filter values for case-insensitive matching
+ * Capitalizes first letter to match how brand names are typically stored
+ * Examples: "apple" -> "Apple", "APPLE" -> "Apple", "Apple" -> "Apple"
+ */
+const normalizeFilterValue = (value) => {
+  if (!value || typeof value !== 'string') return value;
+  return value.charAt(0).toUpperCase() + value.slice(1).toLowerCase();
+};
+
 const buildLiveSearchFilters = (filter) => {
   if (!filter) return [];
   
   const searchFilters = [];
   
-  // Category filter - Live Search uses 'categories'
-  if (filter.category) {
+  // Category filter - uses URL key like "phones"
+  if (filter.categoryUrlKey) {
     searchFilters.push({
       attribute: 'categories',
-      in: [filter.category]
+      in: [filter.categoryUrlKey]
     });
   }
   
   // Manufacturer filter - needs cs_ prefix
+  // Normalize for case-insensitive matching ("apple" -> "Apple")
   if (filter.manufacturer) {
     searchFilters.push({
       attribute: 'cs_manufacturer',
-      in: [filter.manufacturer]
+      in: [normalizeFilterValue(filter.manufacturer)]
+    });
+  }
+  
+  // Memory filter
+  if (filter.memory) {
+    searchFilters.push({
+      attribute: 'cs_memory',
+      in: Array.isArray(filter.memory) ? filter.memory : [filter.memory]
+    });
+  }
+  
+  // Color filter
+  if (filter.colors && filter.colors.length > 0) {
+    searchFilters.push({
+      attribute: 'cs_color',
+      in: filter.colors
     });
   }
   
@@ -102,18 +129,34 @@ const buildCatalogFilters = (filter) => {
   const catalogFilters = [];
   
   // Catalog uses 'categoryPath' instead of 'categories'
-  if (filter.category) {
+  if (filter.categoryUrlKey) {
     catalogFilters.push({
       attribute: 'categoryPath',
-      in: [filter.category]
+      in: [filter.categoryUrlKey]
     });
   }
   
-  // Same manufacturer handling
+  // Same manufacturer handling with normalization
   if (filter.manufacturer) {
     catalogFilters.push({
       attribute: 'cs_manufacturer',
-      in: [filter.manufacturer]
+      in: [normalizeFilterValue(filter.manufacturer)]
+    });
+  }
+  
+  // Memory filter
+  if (filter.memory) {
+    catalogFilters.push({
+      attribute: 'cs_memory',
+      in: Array.isArray(filter.memory) ? filter.memory : [filter.memory]
+    });
+  }
+  
+  // Color filter
+  if (filter.colors && filter.colors.length > 0) {
+    catalogFilters.push({
+      attribute: 'cs_color',
+      in: filter.colors
     });
   }
   
@@ -220,24 +263,30 @@ const executeLiveSearchFacets = async (context, args) => {
     args: {
       phrase: args.phrase || '',
       filter: filters,
-      page_size: 1, // Even though we get facets and not products, we still need one page
+      page_size: 1, // Facet counts represent all matching products, not just current page
       current_page: 1
     },
     context,
     selectionSet: `{
-      aggregations {
+      facets {
         attribute
         title
         type
         buckets {
-          title
-          count
+          ... on Search_ScalarBucket {
+            title
+            count
+          }
+          ... on Search_RangeBucket {
+            title
+            count
+          }
         }
       }
     }`
   });
   
-  return transformFacets(result?.aggregations);
+  return transformFacets(result?.facets);
 };
 
 const executeCatalogFacets = async (context, args) => {
@@ -248,9 +297,8 @@ const executeCatalogFacets = async (context, args) => {
     args: {
       phrase: '',
       filter: filters,
-      page_size: 1, // Even though we get facets and not products, we still need one page
-      current_page: 1,
-      includeAggregations: true
+      page_size: 1, // Facet counts represent all matching products, not just current page
+      current_page: 1
     },
     context,
     selectionSet: `{
@@ -259,8 +307,14 @@ const executeCatalogFacets = async (context, args) => {
         title
         type
         buckets {
-          title
-          count
+          ... on Catalog_ScalarBucket {
+            title
+            count
+          }
+          ... on Catalog_RangeBucket {
+            title
+            count
+          }
         }
       }
     }`

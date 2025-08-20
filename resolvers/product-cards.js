@@ -20,7 +20,7 @@
  *     Citisignal_productCards(
  *       phrase: "iphone"           // Optional search term
  *       filter: {                   // Business-friendly filters
- *         category: "phones"
+ *         categoryUrlKey: "phones"
  *         manufacturer: "Apple"
  *         priceMin: 500
  *         priceMax: 1500
@@ -78,7 +78,7 @@
  * 
  * OUR CUSTOM FILTER (what frontend sends):
  *   filter: {
- *     category: "phones",
+ *     categoryUrlKey: "phones",
  *     manufacturer: "Apple",
  *     priceMin: 500,
  *     priceMax: 1500
@@ -98,19 +98,36 @@ const buildCatalogFilters = (filter) => {
   
   const catalogFilters = [];
   
-  // Category filter - maps to Adobe's categoryPath
-  if (filter.category) {
+  // Category filter - uses URL key like "phones"
+  if (filter.categoryUrlKey) {
     catalogFilters.push({
       attribute: 'categoryPath',
-      in: [filter.category]
+      in: [filter.categoryUrlKey]
     });
   }
   
   // Manufacturer filter - Adobe requires cs_ prefix
+  // Normalize for case-insensitive matching ("apple" -> "Apple")
   if (filter.manufacturer) {
     catalogFilters.push({
       attribute: 'cs_manufacturer',
-      in: [filter.manufacturer]
+      in: [normalizeFilterValue(filter.manufacturer)]
+    });
+  }
+  
+  // Memory filter
+  if (filter.memory) {
+    catalogFilters.push({
+      attribute: 'cs_memory',
+      in: Array.isArray(filter.memory) ? filter.memory : [filter.memory]
+    });
+  }
+  
+  // Color filter
+  if (filter.colors && filter.colors.length > 0) {
+    catalogFilters.push({
+      attribute: 'cs_color',
+      in: filter.colors
     });
   }
   
@@ -134,18 +151,34 @@ const buildLiveSearchFilters = (filter) => {
   const searchFilters = [];
   
   // Live Search uses 'categories' instead of 'categoryPath'
-  if (filter.category) {
+  if (filter.categoryUrlKey) {
     searchFilters.push({
       attribute: 'categories',
-      in: [filter.category]
+      in: [filter.categoryUrlKey]
     });
   }
   
-  // Same manufacturer handling
+  // Same manufacturer handling with normalization
   if (filter.manufacturer) {
     searchFilters.push({
       attribute: 'cs_manufacturer',
-      in: [filter.manufacturer]
+      in: [normalizeFilterValue(filter.manufacturer)]
+    });
+  }
+  
+  // Memory filter
+  if (filter.memory) {
+    searchFilters.push({
+      attribute: 'cs_memory',
+      in: Array.isArray(filter.memory) ? filter.memory : [filter.memory]
+    });
+  }
+  
+  // Color filter
+  if (filter.colors && filter.colors.length > 0) {
+    searchFilters.push({
+      attribute: 'cs_color',
+      in: filter.colors
     });
   }
   
@@ -190,6 +223,16 @@ const shouldUseLiveSearch = (args) => {
 const cleanAttributeName = (name) => {
   if (!name) return name;
   return name.startsWith('cs_') ? name.substring(3) : name;
+};
+
+/**
+ * Normalize filter values for case-insensitive matching
+ * Capitalizes first letter to match how brand names are typically stored
+ * Examples: "apple" -> "Apple", "APPLE" -> "Apple", "Apple" -> "Apple"
+ */
+const normalizeFilterValue = (value) => {
+  if (!value || typeof value !== 'string') return value;
+  return value.charAt(0).toUpperCase() + value.slice(1).toLowerCase();
 };
 
 /**

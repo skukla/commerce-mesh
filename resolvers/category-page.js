@@ -13,20 +13,20 @@
 // ============================================================================
 
 /**
- * Our Custom Query: Citisignal_categoryPage
+ * Our Custom Query: Citisignal_categoryPageData
  * 
  * INPUT:
  *   query {
- *     Citisignal_categoryPage(
- *       categoryId: "phones"      // Optional - omit for "all products"
+ *     Citisignal_categoryPageData(
+ *       categoryUrlKey: "phones"  // Optional URL key - omit for "all products"
  *       phrase: "iphone"          // Optional search within category
  *       filter: {                 // Optional filters
  *         manufacturer: "Apple"
  *         priceMin: 500
  *       }
  *       sort: { attribute: PRICE, direction: ASC }
- *       page: 1
- *       limit: 24
+ *       pageSize: 24
+ *       currentPage: 1
  *     )
  *   }
  * 
@@ -86,14 +86,15 @@
  * Build filters for Catalog Service
  * Separates category filter from user-applied filters
  */
-const buildCatalogFilters = (categoryId, pageFilter) => {
+const buildCatalogFilters = (categoryUrlKey, pageFilter) => {
   const filters = [];
   
   // Category filter (for category pages)
-  if (categoryId) {
+  // Note: categoryUrlKey is the URL key like "phones", not an ID
+  if (categoryUrlKey) {
     filters.push({ 
       attribute: 'categoryPath', 
-      in: [categoryId] 
+      in: [categoryUrlKey]  // Try using URL key directly
     });
   }
   
@@ -102,7 +103,21 @@ const buildCatalogFilters = (categoryId, pageFilter) => {
     if (pageFilter.manufacturer) {
       filters.push({ 
         attribute: 'cs_manufacturer', 
-        in: [pageFilter.manufacturer] 
+        in: [normalizeFilterValue(pageFilter.manufacturer)] 
+      });
+    }
+    
+    if (pageFilter.memory) {
+      filters.push({
+        attribute: 'cs_memory',
+        in: Array.isArray(pageFilter.memory) ? pageFilter.memory : [pageFilter.memory]
+      });
+    }
+    
+    if (pageFilter.colors && pageFilter.colors.length > 0) {
+      filters.push({
+        attribute: 'cs_color',
+        in: pageFilter.colors
       });
     }
     
@@ -123,14 +138,15 @@ const buildCatalogFilters = (categoryId, pageFilter) => {
 /**
  * Build filters for Live Search (slightly different format)
  */
-const buildLiveSearchFilters = (categoryId, pageFilter) => {
+const buildLiveSearchFilters = (categoryUrlKey, pageFilter) => {
   const filters = [];
   
   // Live Search uses 'categories' instead of 'categoryPath'
-  if (categoryId) {
+  // Note: categoryUrlKey is the URL key like "phones", not an ID
+  if (categoryUrlKey) {
     filters.push({ 
       attribute: 'categories', 
-      in: [categoryId] 
+      in: [categoryUrlKey]  // Try using URL key directly
     });
   }
   
@@ -139,7 +155,21 @@ const buildLiveSearchFilters = (categoryId, pageFilter) => {
     if (pageFilter.manufacturer) {
       filters.push({ 
         attribute: 'cs_manufacturer', 
-        in: [pageFilter.manufacturer] 
+        in: [normalizeFilterValue(pageFilter.manufacturer)] 
+      });
+    }
+    
+    if (pageFilter.memory) {
+      filters.push({
+        attribute: 'cs_memory',
+        in: Array.isArray(pageFilter.memory) ? pageFilter.memory : [pageFilter.memory]
+      });
+    }
+    
+    if (pageFilter.colors && pageFilter.colors.length > 0) {
+      filters.push({
+        attribute: 'cs_color',
+        in: pageFilter.colors
       });
     }
     
@@ -171,6 +201,16 @@ const buildLiveSearchFilters = (categoryId, pageFilter) => {
 const cleanAttributeName = (name) => {
   if (!name) return name;
   return name.startsWith('cs_') ? name.substring(3) : name;
+};
+
+/**
+ * Normalize filter values for case-insensitive matching
+ * Capitalizes first letter to match how brand names are typically stored
+ * Examples: "apple" -> "Apple", "APPLE" -> "Apple", "Apple" -> "Apple"
+ */
+const normalizeFilterValue = (value) => {
+  if (!value || typeof value !== 'string') return value;
+  return value.charAt(0).toUpperCase() + value.slice(1).toLowerCase();
 };
 
 /**
@@ -439,8 +479,8 @@ const buildBreadcrumbs = (category) => {
  * This is the core value of the unified query - getting everything at once
  */
 const executeUnifiedQuery = async (context, args) => {
-  const catalogFilters = buildCatalogFilters(args.categoryId, args.filter);
-  const searchFilters = buildLiveSearchFilters(args.categoryId, args.filter);
+  const catalogFilters = buildCatalogFilters(args.categoryUrlKey, args.filter);
+  const searchFilters = buildLiveSearchFilters(args.categoryUrlKey, args.filter);
   const useSearch = args.phrase && args.phrase.trim() !== '';
   
   // Start ALL queries simultaneously
@@ -535,9 +575,12 @@ const executeUnifiedQuery = async (context, args) => {
             }
             total_count
             page_info { current_page page_size total_pages }
-            aggregations {
+            facets {
               attribute title
-              buckets { title count }
+              buckets { 
+                ... on Search_ScalarBucket { title count }
+                ... on Search_RangeBucket { title count }
+              }
             }
           }`
         })
@@ -587,19 +630,22 @@ const executeUnifiedQuery = async (context, args) => {
             page_info { current_page page_size total_pages }
             facets {
               attribute title
-              buckets { title count }
+              buckets { 
+                ... on Catalog_ScalarBucket { title count }
+                ... on Catalog_RangeBucket { title count }
+              }
             }
           }`
         })
   ];
   
   // Add category-specific query if needed
-  if (args.categoryId) {
+  if (args.categoryUrlKey) {
     promises.push(
       context.CommerceGraphQL.Query.Commerce_categoryList({
         root: {},
         args: {
-          filters: { ids: { eq: args.categoryId } }
+          filters: { url_key: { eq: args.categoryUrlKey } }
         },
         context,
         selectionSet: `{
@@ -673,13 +719,15 @@ module.exports = {
                   current_page: products.page_info.current_page,
                   page_size: products.page_info.page_size,
                   total_pages: products.page_info.total_pages
-                } : null
+                } : null,
+                // Include facets in products
+                facets: transformFacets(products?.facets || [])
               },
               
               // Facets: Citisignal_ProductFacetsResult
               facets: {
                 facets: transformFacets(
-                  products?.aggregations || products?.facets || []
+                  products?.facets || []
                 ),
                 totalCount: products?.total_count || 0
               },
