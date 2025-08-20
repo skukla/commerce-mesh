@@ -1,67 +1,156 @@
 /**
- * CATEGORY PAGE DATA RESOLVER
+ * CITISIGNAL CATEGORY PAGE - UNIFIED PAGE DATA QUERY
  * 
- * Universal resolver for all product listing pages (category pages, search results, all products).
- * Optimized for server-side rendering to deliver complete page data in one query.
+ * This resolver demonstrates orchestrating multiple Adobe services into one query
+ * that provides ALL data needed for a category page's initial load.
  * 
- * This handles ALL product listing scenarios:
- * - Category pages (/phones, /watches)
- * - Search results (no specific category)
- * - All products view
- * 
- * This resolver demonstrates the SSR-first pattern where:
- * - Initial page load gets everything from one query (fast SSR)
- * - Client-side updates use individual queries (flexible updates)
- * 
- * Orchestrates:
- * - Commerce Core: Navigation and breadcrumbs
- * - Catalog Service: Product listings
- * - Live Search: Facets and AI ranking
+ * What Adobe gives us: Separate services for navigation, products, facets, breadcrumbs
+ * What we deliver: Complete page data in ONE query for fast initial page loads
  */
 
 // ============================================================================
-// SECTION 1: CONSTANTS
+// CUSTOM QUERY DEFINITION - The unified page API we're creating
 // ============================================================================
 
-const DEFAULT_PAGE_SIZE = 24;
-const DEFAULT_MAX_PRICE = 999999;
-const DEFAULT_MIN_PRICE = 0;
+/**
+ * Our Custom Query: Citisignal_categoryPage
+ * 
+ * INPUT:
+ *   query {
+ *     Citisignal_categoryPage(
+ *       categoryId: "phones"      // Optional - omit for "all products"
+ *       phrase: "iphone"          // Optional search within category
+ *       filter: {                 // Optional filters
+ *         manufacturer: "Apple"
+ *         priceMin: 500
+ *       }
+ *       sort: { attribute: PRICE, direction: ASC }
+ *       page: 1
+ *       limit: 24
+ *     )
+ *   }
+ * 
+ * OUTPUT - Complete page data in one response:
+ *   {
+ *     // Navigation for header/footer
+ *     navigation: {
+ *       header: [{ name: "Phones", href: "/phones" }]
+ *       footer: [{ name: "Support", href: "/support" }]
+ *     }
+ *     
+ *     // Breadcrumb trail
+ *     breadcrumbs: [
+ *       { name: "Home", href: "/" },
+ *       { name: "Phones", href: "/phones", isActive: true }
+ *     ]
+ *     
+ *     // Product listings
+ *     products: {
+ *       items: [{ ... }]         // Transformed product cards
+ *       totalCount: 42
+ *       hasMoreItems: true
+ *     }
+ *     
+ *     // Filter options
+ *     facets: [{ ... }]          // Available filters
+ *     
+ *     // Page metadata
+ *     category: {
+ *       name: "Phones"
+ *       description: "..."
+ *     }
+ *   }
+ * 
+ *
+ */
 
 // ============================================================================
-// SECTION 2: FILTER CONVERSION
+// SERVICE ORCHESTRATION - Coordinate multiple Adobe services
+// ============================================================================
+
+/**
+ * Services we orchestrate:
+ * 1. Commerce Core - Navigation and breadcrumbs
+ * 2. Catalog Service - Product listings
+ * 3. Live Search - Facets and AI ranking when searching
+ * 
+ * This demonstrates API Mesh's power to combine multiple backend services
+ * into a single, efficient GraphQL query for the frontend.
+ */
+
+// ============================================================================
+// FILTER TRANSFORMATION - Business filters to service formats
 // ============================================================================
 
 /**
  * Build filters for Catalog Service
- * Now accepts category separately from page filter
+ * Separates category filter from user-applied filters
  */
 const buildCatalogFilters = (categoryId, pageFilter) => {
   const filters = [];
   
-  // Add category filter if provided (optional for product page)
+  // Category filter (for category pages)
   if (categoryId) {
-    filters.push({ attribute: 'categoryPath', in: [categoryId] });
+    filters.push({ 
+      attribute: 'categoryPath', 
+      in: [categoryId] 
+    });
   }
   
-  // Add page filters if provided
+  // User-applied filters
   if (pageFilter) {
     if (pageFilter.manufacturer) {
-      filters.push({ attribute: 'cs_manufacturer', in: [pageFilter.manufacturer] });
+      filters.push({ 
+        attribute: 'cs_manufacturer', 
+        in: [pageFilter.manufacturer] 
+      });
     }
+    
     if (pageFilter.priceMin !== undefined || pageFilter.priceMax !== undefined) {
       filters.push({
         attribute: 'price',
         range: {
-          from: pageFilter.priceMin || DEFAULT_MIN_PRICE,
-          to: pageFilter.priceMax || DEFAULT_MAX_PRICE
+          from: pageFilter.priceMin || 0,
+          to: pageFilter.priceMax || 999999
         }
       });
     }
-    if (pageFilter.memory) {
-      filters.push({ attribute: 'memory', in: pageFilter.memory });
+  }
+  
+  return filters;
+};
+
+/**
+ * Build filters for Live Search (slightly different format)
+ */
+const buildLiveSearchFilters = (categoryId, pageFilter) => {
+  const filters = [];
+  
+  // Live Search uses 'categories' instead of 'categoryPath'
+  if (categoryId) {
+    filters.push({ 
+      attribute: 'categories', 
+      in: [categoryId] 
+    });
+  }
+  
+  // Rest is similar to Catalog
+  if (pageFilter) {
+    if (pageFilter.manufacturer) {
+      filters.push({ 
+        attribute: 'cs_manufacturer', 
+        in: [pageFilter.manufacturer] 
+      });
     }
-    if (pageFilter.colors) {
-      filters.push({ attribute: 'color', in: pageFilter.colors });
+    
+    if (pageFilter.priceMin !== undefined || pageFilter.priceMax !== undefined) {
+      filters.push({
+        attribute: 'price',
+        range: {
+          from: pageFilter.priceMin || 0,
+          to: pageFilter.priceMax || 999999
+        }
+      });
     }
   }
   
@@ -69,574 +158,591 @@ const buildCatalogFilters = (categoryId, pageFilter) => {
 };
 
 // ============================================================================
-// SECTION 3: ATTRIBUTE EXTRACTION
+// DATA TRANSFORMATION - Complex to simple
+// ============================================================================
+
+// ============================================================================
+// BUSINESS LOGIC HELPERS - Reusable transformation functions
 // ============================================================================
 
 /**
- * Clean attribute name by removing cs_ prefix
+ * Clean technical prefixes from attribute names
  */
 const cleanAttributeName = (name) => {
-  if (!name) return '';
+  if (!name) return name;
   return name.startsWith('cs_') ? name.substring(3) : name;
 };
 
 /**
- * Extract attribute value from attributes array
- */
-const extractAttributeValue = (attributes, attributeName, defaultValue = '') => {
-  if (!attributes || !Array.isArray(attributes)) return defaultValue;
-  
-  const csName = `cs_${attributeName}`;
-  const attr = attributes.find(a => 
-    a.name === attributeName || 
-    a.name === csName ||
-    cleanAttributeName(a.name) === attributeName
-  );
-  
-  return attr?.value || defaultValue;
-};
-
-// ============================================================================
-// SECTION 4: PRICE UTILITIES
-// ============================================================================
-
-/**
- * Extract regular price from product
- */
-const extractRegularPrice = (product) => {
-  const isComplex = product.__typename === 'Catalog_ComplexProductView';
-  return isComplex 
-    ? product.priceRange?.minimum?.regular?.amount?.value
-    : product.price?.regular?.amount?.value;
-};
-
-/**
- * Extract final price from product
- */
-const extractFinalPrice = (product) => {
-  const isComplex = product.__typename === 'Catalog_ComplexProductView';
-  return isComplex 
-    ? product.priceRange?.minimum?.final?.amount?.value
-    : product.price?.final?.amount?.value;
-};
-
-/**
- * Calculate discount percentage
- */
-const calculateDiscountPercentage = (regularPrice, finalPrice) => {
-  if (!regularPrice || regularPrice <= 0) return 0;
-  if (!finalPrice || finalPrice >= regularPrice) return 0;
-  
-  const discount = ((regularPrice - finalPrice) / regularPrice) * 100;
-  return Math.round(discount);
-};
-
-/**
- * Format price with currency symbol and thousand separators
+ * Format price for display with currency symbol and thousands separator
  */
 const formatPrice = (amount) => {
-  if (amount === null || amount === undefined) return null;
+  if (!amount) return null;
   return `$${amount.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`;
 };
 
-// ============================================================================
-// SECTION 5: URL UTILITIES
-// ============================================================================
+/**
+ * Calculate discount percentage from regular and final prices
+ */
+const calculateDiscountPercent = (regularPrice, finalPrice) => {
+  if (!regularPrice || !finalPrice || finalPrice >= regularPrice) return null;
+  return Math.round(((regularPrice - finalPrice) / regularPrice) * 100);
+};
 
 /**
  * Ensure URL uses HTTPS protocol
  */
-const ensureHttpsUrl = (url) => {
-  if (!url || typeof url !== 'string') return url;
+const ensureHttps = (url) => {
+  if (!url) return url;
+  return url.startsWith('http://') ? url.replace('http://', 'https://') : url;
+};
+
+/**
+ * Extract price value from nested price structure
+ */
+const extractPriceValue = (product, priceType, isComplex) => {
+  if (isComplex) {
+    return priceType === 'regular'
+      ? product.priceRange?.minimum?.regular?.amount?.value
+      : product.priceRange?.minimum?.final?.amount?.value;
+  }
+  return priceType === 'regular'
+    ? product.price?.regular?.amount?.value
+    : product.price?.final?.amount?.value;
+};
+
+/**
+ * Find attribute value by name (checks both with and without cs_ prefix)
+ */
+const findAttributeValue = (attributes, name) => {
+  if (!attributes || !Array.isArray(attributes)) return null;
+  const attr = attributes.find(a => 
+    a.name === name || a.name === `cs_${name}`
+  );
+  return attr?.value;
+};
+
+/**
+ * Extract and transform variant options from product
+ * Dynamically handles all cs_ prefixed options
+ */
+const extractVariantOptions = (options) => {
+  const variantOptions = {};
   
-  if (url.startsWith('//')) {
-    return 'https:' + url;
+  if (!options || !Array.isArray(options)) {
+    return variantOptions;
   }
   
-  return url.replace(/^http:\/\//, 'https://');
-};
-
-// ============================================================================
-// SECTION 6: PRODUCT TRANSFORMATION
-// ============================================================================
-
-/**
- * Extract memory options from product
- */
-const extractMemoryOptions = (product) => {
-  if (!product.options) return [];
-  const memoryOption = product.options.find(opt => opt.title === 'Memory');
-  return memoryOption?.values?.map(v => v.title) || [];
-};
-
-/**
- * Extract color options from product
- */
-const extractColorOptions = (product) => {
-  if (!product.options) return [];
-  const colorOption = product.options.find(opt => opt.title === 'Color');
-  return colorOption?.values?.map(v => ({
-    name: v.title,
-    hex: v.value || '#000000'
-  })) || [];
+  options.forEach(option => {
+    if (option.id?.startsWith('cs_')) {
+      // Clean the option name using helper
+      const cleanOptionName = cleanAttributeName(option.id);
+      
+      // Special handling for color options (include hex values)
+      if (cleanOptionName === 'color' && option.values) {
+        variantOptions.colors = option.values.map(v => ({
+          name: v.title,
+          hex: v.value || '#000000'
+        }));
+      } 
+      // Standard handling for other options (memory, storage, etc.)
+      else if (option.values) {
+        variantOptions[cleanOptionName] = option.values.map(v => v.title);
+      }
+    }
+  });
+  
+  return variantOptions;
 };
 
 /**
- * Transform product data to consistent format
+ * Transform product for page display  
+ * This is the EXACT transformation from product-cards.js resolver
+ * Copied here to ensure consistency between unified and focused resolvers
  */
-const transformProduct = (product) => {
+const transformProductToCard = (product) => {
   if (!product) return null;
   
+  // --- EXTRACT FROM NESTED STRUCTURES ---
   const isComplex = product.__typename === 'Catalog_ComplexProductView';
-  const regularPrice = extractRegularPrice(product);
-  const finalPrice = extractFinalPrice(product);
+  const regularPrice = extractPriceValue(product, 'regular', isComplex);
+  const finalPrice = extractPriceValue(product, 'final', isComplex);
+  const manufacturer = findAttributeValue(product.attributes, 'manufacturer');
   
-  const onSale = regularPrice && finalPrice && finalPrice < regularPrice;
-  const discountPercent = onSale ? calculateDiscountPercentage(regularPrice, finalPrice) : null;
+  // --- APPLY BUSINESS LOGIC ---
+  const isOnSale = regularPrice && finalPrice && finalPrice < regularPrice;
+  const discountPercent = calculateDiscountPercent(regularPrice, finalPrice);
+  const cleanManufacturer = cleanAttributeName(manufacturer);
+  const variantOptions = extractVariantOptions(product.options);
+  const imageUrl = product.images?.[0]?.url;
+  const secureImageUrl = ensureHttps(imageUrl);
   
-  const manufacturer = extractAttributeValue(
-    product.attributes,
-    'manufacturer',
-    null
-  );
-  
-  const memoryOptions = isComplex ? extractMemoryOptions(product) : [];
-  const colorOptions = isComplex ? extractColorOptions(product) : [];
-  
-  const image = product.images?.[0] ? {
-    url: ensureHttpsUrl(product.images[0].url),
-    altText: product.images[0].label || product.name
-  } : null;
-  
+  // --- BUILD CUSTOM RESPONSE SHAPE ---
   return {
+    // Basic fields
     id: product.id,
     sku: product.sku,
-    urlKey: product.urlKey || '',
     name: product.name,
-    manufacturer,
+    urlKey: product.urlKey || '',
+    
+    // Business fields with transformation via business logic
+    manufacturer: cleanManufacturer || null,
     price: formatPrice(finalPrice),
-    originalPrice: onSale ? formatPrice(regularPrice) : null,
+    originalPrice: isOnSale ? formatPrice(regularPrice) : null,
     discountPercent,
     inStock: product.inStock || false,
-    image,
-    memory: memoryOptions.length > 0 ? memoryOptions : null,
-    colors: colorOptions.length > 0 ? colorOptions : null
+    
+    // Simplified media structure
+    image: imageUrl ? {
+      url: secureImageUrl,
+      altText: product.images[0].label || product.name
+    } : null,
+    
+    // Variant options - dynamically included based on what's available
+    ...variantOptions
   };
 };
 
-// ============================================================================
-// SECTION 7: NAVIGATION TRANSFORMATION
-// ============================================================================
+/**
+ * Transform facets for filters
+ * Using logic aligned with product-facets resolver
+ */
+const transformFacets = (facets) => {
+  if (!facets || !Array.isArray(facets)) return [];
+  
+  return facets.map(facet => {
+    // Clean the attribute name using helper
+    const cleanAttribute = cleanAttributeName(facet.attribute);
+    
+    // RESPECT ADMIN-CONFIGURED LABELS
+    // Use the title from Adobe if provided, otherwise use cleaned attribute
+    const title = facet.title || cleanAttribute;
+    
+    return {
+      key: cleanAttribute,
+      title: title,
+      type: facet.type || 'STANDARD',
+      options: facet.buckets?.map(bucket => ({
+        id: bucket.title,      // Use title as ID
+        name: bucket.title,    // Display name
+        count: bucket.count || 0
+      })) || []
+    };
+  }).filter(facet => facet.options.length > 0);
+};
 
 /**
- * Transform category list to navigation structure
+ * Transform category for navigation 
+ * Using logic aligned with category-navigation resolver
  */
-const transformNavigation = (categories, activeCategory) => {
-  if (!categories || !Array.isArray(categories)) {
-    return { headerNav: [], footerNav: [] };
-  }
+const transformCategory = (category) => {
+  if (!category) return null;
   
-  const headerNav = [];
-  const footerNav = [];
-  
-  categories.forEach(cat => {
-    if (cat.children) {
-      cat.children.forEach(child => {
-        if (child.include_in_menu === 1 && child.level === 2) {
-          const navItem = {
-            href: `/${child.url_key}`,
-            label: child.name,
-            category: child.url_key,
-            isActive: child.url_key === activeCategory
-          };
-          
-          if (child.position <= 6) {
-            headerNav.push(navItem);
-          } else {
-            footerNav.push({ href: navItem.href, label: navItem.label });
-          }
-        }
-      });
-    }
-  });
+  // Build navigation-ready fields
+  const href = category.url_path ? `/${category.url_path}` : '/';
   
   return {
-    headerNav: headerNav.sort((a, b) => a.position - b.position),
-    footerNav: footerNav.sort((a, b) => a.position - b.position)
+    // Essential navigation fields
+    id: String(category.id || category.uid),
+    name: category.name || '',
+    href: href,                          // Ready-to-use link
+    label: category.name || '',          // Display text
+    
+    // Hierarchy and ordering
+    level: category.level || 0,
+    position: category.position || 0,
+    
+    // Metadata for filtering
+    includeInMenu: category.include_in_menu === 1 || category.include_in_menu === true,
+    isActive: category.is_active === true || category.is_active === 1,
+    productCount: category.product_count || 0,
+    
+    // Nested navigation (recursive transformation)
+    children: category.children?.map(transformCategory).filter(Boolean) || [],
+    
+    // Additional fields for advanced use
+    urlPath: category.url_path || '',
+    urlKey: category.url_key || '',
+    parentId: category.parent_id || null
   };
 };
 
 /**
- * Find category breadcrumbs
+ * Filter categories for navigation display
+ * Business rules from category-navigation resolver
  */
-const findCategoryBreadcrumbs = (categories, urlKey, trail = []) => {
-  for (const cat of categories) {
-    if (cat.url_key === urlKey) {
-      return [...trail, { name: cat.name, urlPath: `/${cat.url_key}` }];
-    }
-    if (cat.children) {
-      const result = findCategoryBreadcrumbs(
-        cat.children,
-        urlKey,
-        [...trail, { name: cat.name, urlPath: `/${cat.url_key}` }]
-      );
-      if (result) return result;
-    }
-  }
-  return null;
+const filterForNavigation = (categories, maxItems = 10) => {
+  if (!categories || !Array.isArray(categories)) return [];
+  
+  return categories
+    .filter(cat => 
+      cat.includeInMenu &&     // Admin marked for menu
+      cat.isActive &&          // Currently active
+      cat.name &&              // Has a name to display
+      cat.href                 // Has a valid URL
+    )
+    .sort((a, b) => a.position - b.position)  // Respect admin ordering
+    .slice(0, maxItems)        // Limit for clean UI
+    .map(cat => ({
+      ...cat,
+      // Recursively filter children
+      children: filterForNavigation(cat.children, maxItems)
+    }));
 };
 
 /**
- * Find category info
+ * Build breadcrumb trail
+ * Using logic aligned with category-breadcrumbs resolver
  */
-const findCategoryInfo = (categories, urlKey) => {
-  for (const cat of categories) {
-    if (cat.url_key === urlKey) {
-      return {
-        id: cat.id,
-        name: cat.name,
-        urlKey: cat.url_key,
-        description: cat.description,
-        metaTitle: cat.meta_title || cat.name,
-        metaDescription: cat.meta_description
-      };
-    }
-    if (cat.children) {
-      const result = findCategoryInfo(cat.children, urlKey);
-      if (result) return result;
-    }
-  }
-  return null;
-};
-
-// ============================================================================
-// SECTION 8: SERVICE QUERIES
-// ============================================================================
-
-/**
- * Fetch navigation from Commerce Core
- */
-const fetchNavigation = async (context, categoryId) => {
-  const categories = await context.CommerceGraphQL.Query.Commerce_categoryList({
-    root: {},
-    args: {},
-    context,
-    selectionSet: `{
-      id name url_path url_key level position include_in_menu
-      children {
-        id name url_path url_key level position include_in_menu product_count
-        children {
-          id name url_path url_key level position include_in_menu product_count
-        }
-      }
-    }`
+const buildBreadcrumbs = (category) => {
+  const breadcrumbs = [];
+  
+  // Always start with Home
+  breadcrumbs.push({
+    name: 'Home',
+    href: '/',
+    isActive: false
   });
   
-  return transformNavigation(categories, categoryId);
+  // Add parent categories
+  if (category?.breadcrumbs) {
+    category.breadcrumbs.forEach(crumb => {
+      breadcrumbs.push({
+        name: crumb.category_name,
+        href: `/${crumb.category_url_path}`,
+        isActive: false
+      });
+    });
+  }
+  
+  // Add current category
+  if (category) {
+    breadcrumbs.push({
+      name: category.name,
+      href: `/${category.url_path}`,
+      isActive: true
+    });
+  }
+  
+  return breadcrumbs;
 };
 
+// ============================================================================
+// PARALLEL QUERY EXECUTION - The orchestration magic
+// ============================================================================
+
 /**
- * Fetch products with hybrid approach
+ * Execute all queries in parallel for maximum performance
+ * This is the core value of the unified query - getting everything at once
  */
-const fetchProducts = async (context, args) => {
-  const { phrase, catalogFilters, pageSize, currentPage, sort } = args;
+const executeUnifiedQuery = async (context, args) => {
+  const catalogFilters = buildCatalogFilters(args.categoryId, args.filter);
+  const searchFilters = buildLiveSearchFilters(args.categoryId, args.filter);
+  const useSearch = args.phrase && args.phrase.trim() !== '';
   
-  if (phrase) {
-    // With search: Use Live Search for AI ranking + Catalog for details
-    const [searchResult, catalogResult] = await Promise.all([
-      context.LiveSearchSandbox.Query.Search_productSearch({
-        root: {},
-        args: {
-          phrase: phrase,
-          filter: catalogFilters,
-          page_size: pageSize,
-          current_page: currentPage,
-          sort: sort ? [{ attribute: sort.attribute?.toLowerCase(), direction: sort.direction }] : []
-        },
-        context,
-        selectionSet: `{ items { product { sku } } total_count page_info { current_page page_size total_pages } }`
-      }),
-      context.CatalogServiceSandbox.Query.Catalog_productSearch({
-        root: {},
-        args: {
-          phrase: phrase,
-          filter: catalogFilters,
-          page_size: pageSize,
-          current_page: currentPage
-        },
-        context,
-        selectionSet: `{
-          items {
-            productView {
-              __typename id name sku urlKey inStock
-              images(roles: ["small_image"]) { url label }
-              attributes { name value }
-              ... on Catalog_SimpleProductView {
-                price {
-                  regular { amount { value } }
-                  final { amount { value } }
-                }
-              }
-              ... on Catalog_ComplexProductView {
-                priceRange {
-                  minimum {
+  // Start ALL queries simultaneously
+  const promises = [
+    // 1. Navigation (Commerce Core)
+    context.CommerceGraphQL.Query.Commerce_categoryList({
+      root: {},
+      args: { filters: {} },
+      context,
+      selectionSet: `{
+        id
+        uid
+        name
+        url_path
+        url_key
+        include_in_menu
+        is_active
+        level
+        position
+        product_count
+        parent_id
+        children {
+          id
+          uid
+          name
+          url_path
+          url_key
+          include_in_menu
+          is_active
+          level
+          position
+          product_count
+          children {
+            id
+            uid
+            name
+            url_path
+            url_key
+            include_in_menu
+            is_active
+            level
+            position
+            product_count
+          }
+        }
+      }`
+    }),
+    
+    // 2. Products (Catalog or Live Search based on context)
+    useSearch
+      ? context.LiveSearchSandbox.Query.Search_productSearch({
+          root: {},
+          args: {
+            phrase: args.phrase,
+            filter: searchFilters,
+            page_size: args.limit || 24,
+            current_page: args.page || 1
+          },
+          context,
+          selectionSet: `{
+            items {
+              productView {
+                __typename
+                id name sku urlKey inStock
+                images(roles: ["small_image"]) { url label }
+                attributes { name value }
+                ... on Catalog_SimpleProductView {
+                  price {
                     regular { amount { value } }
                     final { amount { value } }
                   }
                 }
-                options {
-                  title
-                  values {
-                    ... on Catalog_ProductViewOptionValueSwatch {
-                      title
-                      value
+                ... on Catalog_ComplexProductView {
+                  priceRange {
+                    minimum {
+                      regular { amount { value } }
+                      final { amount { value } }
+                    }
+                  }
+                  options {
+                    id
+                    title
+                    values {
+                      ... on Catalog_ProductViewOptionValueSwatch {
+                        title
+                        value
+                      }
                     }
                   }
                 }
               }
             }
-          }
-        }`
-      })
-    ]);
-    
-    // Merge Live Search ranking with Catalog details
-    const orderedSkus = searchResult?.items?.map(item => item.product?.sku).filter(Boolean) || [];
-    const productMap = new Map();
-    
-    catalogResult?.items?.forEach(item => {
-      if (item.productView?.sku) {
-        productMap.set(item.productView.sku, item.productView);
-      }
-    });
-    
-    const items = orderedSkus.map(sku => {
-      const product = productMap.get(sku);
-      if (!product) return null;
-      return transformProduct(product);
-    }).filter(Boolean);
-    
-    return {
-      items,
-      totalCount: searchResult?.total_count || 0,
-      hasMoreItems: searchResult?.page_info?.current_page < searchResult?.page_info?.total_pages,
-      currentPage: searchResult?.page_info?.current_page || 1,
-      page_info: searchResult?.page_info || { current_page: 1, page_size: pageSize, total_pages: 1 }
-    };
-  } else {
-    // Without search: Direct Catalog query
-    const result = await context.CatalogServiceSandbox.Query.Catalog_productSearch({
-      root: {},
-      args: {
-        phrase: '',
-        filter: catalogFilters,
-        page_size: pageSize,
-        current_page: currentPage,
-        sort: sort ? { attribute: sort.attribute?.toLowerCase(), direction: sort.direction } : null
-      },
-      context,
-      selectionSet: `{
-        total_count
-        page_info { current_page page_size total_pages }
-        items {
-          productView {
-            __typename id name sku urlKey inStock
-            images(roles: ["small_image"]) { url label }
-            attributes { name value }
-            ... on Catalog_SimpleProductView {
-              price {
-                regular { amount { value } }
-                final { amount { value } }
-              }
+            total_count
+            page_info { current_page page_size total_pages }
+            aggregations {
+              attribute title
+              buckets { title count }
             }
-            ... on Catalog_ComplexProductView {
-              priceRange {
-                minimum {
-                  regular { amount { value } }
-                  final { amount { value } }
+          }`
+        })
+      : context.CatalogServiceSandbox.Query.Catalog_productSearch({
+          root: {},
+          args: {
+            phrase: '',
+            filter: catalogFilters,
+            page_size: args.limit || 24,
+            current_page: args.page || 1
+          },
+          context,
+          selectionSet: `{
+            items {
+              productView {
+                __typename
+                id name sku urlKey inStock
+                images(roles: ["small_image"]) { url label }
+                attributes { name value }
+                ... on Catalog_SimpleProductView {
+                  price {
+                    regular { amount { value } }
+                    final { amount { value } }
+                  }
                 }
-              }
-              options {
-                title
-                values {
-                  ... on Catalog_ProductViewOptionValueSwatch {
+                ... on Catalog_ComplexProductView {
+                  priceRange {
+                    minimum {
+                      regular { amount { value } }
+                      final { amount { value } }
+                    }
+                  }
+                  options {
+                    id
                     title
-                    value
+                    values {
+                      ... on Catalog_ProductViewOptionValueSwatch {
+                        title
+                        value
+                      }
+                    }
                   }
                 }
               }
             }
-          }
-        }
-      }`
-    });
-    
-    return {
-      items: result?.items?.map(item => transformProduct(item.productView)).filter(Boolean) || [],
-      totalCount: result?.total_count || 0,
-      hasMoreItems: result?.page_info?.current_page < result?.page_info?.total_pages,
-      currentPage: result?.page_info?.current_page || 1,
-      page_info: result?.page_info || { current_page: 1, page_size: pageSize, total_pages: 1 }
-    };
-  }
-};
-
-/**
- * Fetch facets from Live Search
- */
-const fetchFacets = async (context, args) => {
-  const { phrase, catalogFilters } = args;
+            total_count
+            page_info { current_page page_size total_pages }
+            facets {
+              attribute title
+              buckets { title count }
+            }
+          }`
+        })
+  ];
   
-  const result = await context.LiveSearchSandbox.Query.Search_productSearch({
-    root: {},
-    args: {
-      phrase: phrase || '',
-      filter: catalogFilters,
-      page_size: 1,
-      current_page: 1
-    },
-    context,
-    selectionSet: `{
-      facets {
-        title
-        attribute
-        buckets {
-          title
-          __typename
-          ... on Search_ScalarBucket { 
-            id 
-            count
+  // Add category-specific query if needed
+  if (args.categoryId) {
+    promises.push(
+      context.CommerceGraphQL.Query.Commerce_categoryList({
+        root: {},
+        args: {
+          filters: { ids: { eq: args.categoryId } }
+        },
+        context,
+        selectionSet: `{
+          id name url_path description
+          breadcrumbs {
+            category_name
+            category_url_path
           }
-        }
-      }
-    }`
-  });
+        }`
+      })
+    );
+  }
+  
+  // Execute all queries in parallel
+  const results = await Promise.all(promises);
   
   return {
-    facets: result?.facets?.map(facet => ({
-      title: facet.title,
-      key: cleanAttributeName(facet.attribute),  // Clean the cs_ prefix
-      type: 'list',
-      options: facet.buckets?.map(bucket => ({
-        id: bucket.id || bucket.title,
-        name: bucket.title,
-        count: bucket.count || 0  // Use actual count from bucket
-      })) || []
-    })) || []
-  };
-};
-
-/**
- * Fetch breadcrumbs from Commerce Core
- */
-const fetchBreadcrumbs = async (context, categoryId) => {
-  const categories = await context.CommerceGraphQL.Query.Commerce_categoryList({
-    root: {},
-    args: {},
-    context,
-    selectionSet: `{
-      id name url_path url_key level
-      children {
-        id name url_path url_key level
-        children {
-          id name url_path url_key level
-        }
-      }
-    }`
-  });
-  
-  const breadcrumbs = categories ? findCategoryBreadcrumbs(categories, categoryId) : null;
-  return { items: breadcrumbs || [] };
-};
-
-/**
- * Fetch category info from Commerce Core
- */
-const fetchCategoryInfo = async (context, categoryId) => {
-  const categories = await context.CommerceGraphQL.Query.Commerce_categoryList({
-    root: {},
-    args: {},
-    context,
-    selectionSet: `{
-      id name url_key description meta_title meta_description
-      children {
-        id name url_key description meta_title meta_description
-        children {
-          id name url_key description meta_title meta_description
-        }
-      }
-    }`
-  });
-  
-  return findCategoryInfo(categories, categoryId) || {
-    name: categoryId.charAt(0).toUpperCase() + categoryId.slice(1),
-    urlKey: categoryId
+    navigation: results[0],
+    products: results[1],
+    category: results[2]?.[0] || null
   };
 };
 
 // ============================================================================
-// SECTION 9: MAIN RESOLVER
+// MAIN RESOLVER - Unified page data API
 // ============================================================================
-
-// Main handler for both queries
-const handleCategoryPageQuery = async (root, args, context, info) => {
-  try {
-    const {
-      category,
-      phrase,
-      filter,
-      sort,
-      pageSize = DEFAULT_PAGE_SIZE,
-      currentPage = 1
-    } = args;
-    
-    // Category is optional (for search results, all products, etc)
-    // Build filters for services - category is separate from page filters
-    const catalogFilters = buildCatalogFilters(category, filter);
-    
-    // Execute all queries in parallel for optimal SSR performance
-    // Navigation and category info are always fetched, even without a category
-    const [navResult, productsResult, facetsResult, breadcrumbsResult, categoryInfoResult] = await Promise.all([
-      fetchNavigation(context, category),
-      fetchProducts(context, { phrase, catalogFilters, pageSize, currentPage, sort }),
-      fetchFacets(context, { phrase, catalogFilters }),
-      category ? fetchBreadcrumbs(context, category) : Promise.resolve({ items: [] }),
-      category ? fetchCategoryInfo(context, category) : Promise.resolve({ name: 'Products', urlKey: '' })
-    ]);
-    
-    // Return complete page data for SSR
-    return {
-      navigation: navResult,
-      products: productsResult,
-      facets: facetsResult,
-      breadcrumbs: breadcrumbsResult,
-      categoryInfo: categoryInfoResult
-    };
-    
-  } catch (error) {
-    console.error('Error in category page query:', error.message);
-    
-    // Return safe defaults for SSR resilience
-    return {
-      navigation: { headerNav: [], footerNav: [] },
-      products: { 
-        items: [], 
-        totalCount: 0, 
-        hasMoreItems: false,
-        currentPage: 1,
-        page_info: { current_page: 1, page_size: DEFAULT_PAGE_SIZE, total_pages: 1 }
-      },
-      facets: { facets: [] },
-      breadcrumbs: { items: [] },
-      categoryInfo: { name: 'Products', urlKey: '' }
-    };
-  }
-};
 
 module.exports = {
   resolvers: {
     Query: {
-      Citisignal_categoryPageData: handleCategoryPageQuery
+      Citisignal_categoryPageData: {
+        resolve: async (root, args, context, info) => {
+          try {
+            // Execute all queries in parallel
+            const { navigation, products, category } = await executeUnifiedQuery(context, args);
+            
+            // Transform navigation
+            const transformedNav = navigation?.map(transformCategory).filter(Boolean) || [];
+            
+            // Filter navigation for display
+            const navItems = filterForNavigation(transformedNav, 10);
+            const headerNav = navItems.slice(0, 5).map(cat => ({
+              href: cat.href,
+              label: cat.label,
+              category: cat.urlKey
+            }));
+            const footerNav = navItems.slice(0, 8).map(cat => ({
+              href: cat.href,
+              label: cat.label
+            }));
+            
+            // Build complete page response
+            return {
+              // Navigation: Citisignal_CategoryNavigationResponse
+              navigation: {
+                items: navItems,
+                headerNav: headerNav,
+                footerNav: footerNav
+              },
+              
+              // Products: Citisignal_ProductCardResult
+              products: {
+                items: products?.items?.map(item => 
+                  transformProductToCard(item.productView)
+                ).filter(Boolean) || [],
+                totalCount: products?.total_count || 0,
+                hasMoreItems: (products?.page_info?.current_page || 1) < 
+                             (products?.page_info?.total_pages || 1),
+                currentPage: products?.page_info?.current_page || 1,
+                page_info: products?.page_info ? {
+                  current_page: products.page_info.current_page,
+                  page_size: products.page_info.page_size,
+                  total_pages: products.page_info.total_pages
+                } : null
+              },
+              
+              // Facets: Citisignal_ProductFacetsResult
+              facets: {
+                facets: transformFacets(
+                  products?.aggregations || products?.facets || []
+                ),
+                totalCount: products?.total_count || 0
+              },
+              
+              // Breadcrumbs: Citisignal_BreadcrumbResponse
+              breadcrumbs: {
+                items: buildBreadcrumbs(category)
+              },
+              
+              // CategoryInfo: Citisignal_CategoryInfo
+              categoryInfo: category ? {
+                id: category.id,
+                name: category.name || 'All Products',
+                urlKey: category.url_path || '',
+                description: category.description,
+                metaTitle: category.meta_title || category.name,
+                metaDescription: category.meta_description
+              } : {
+                id: null,
+                name: 'All Products',
+                urlKey: '',
+                description: null,
+                metaTitle: null,
+                metaDescription: null
+              }
+            };
+            
+          } catch (error) {
+            console.error('Category page resolver error:', error);
+            // Return minimal structure on error
+            return {
+              navigation: { 
+                items: [], 
+                headerNav: [], 
+                footerNav: [] 
+              },
+              products: { 
+                items: [], 
+                totalCount: 0, 
+                hasMoreItems: false,
+                currentPage: 1,
+                page_info: {
+                  current_page: 1,
+                  page_size: 20,
+                  total_pages: 0
+                }
+              },
+              facets: {
+                facets: [],
+                totalCount: 0
+              },
+              breadcrumbs: {
+                items: []
+              },
+              categoryInfo: {
+                id: null,
+                name: 'All Products',
+                urlKey: '',
+                description: null,
+                metaTitle: null,
+                metaDescription: null
+              }
+            };
+          }
+        }
+      }
     }
   }
 };
