@@ -1,0 +1,40 @@
+# Product Search & Filter Query Schema
+#
+# Consolidated query that returns both products and facets in a single request
+# Optimizes performance by reducing network calls when users interact with filters/search
+# This is the primary query for handling search and filter operations after initial page load
+#
+# What problem does this solve?
+# - Previously: 2 separate queries (productCards + productFacets) after user interaction
+# - Now: 1 consolidated query that returns both datasets
+# - Result: 50% reduction in network requests for filter/search operations
+
+# Combined result containing both products and available facets
+type Citisignal_ProductSearchFilterResult {
+  # Product cards matching the search/filter criteria
+  products: Citisignal_ProductCardResult!
+  
+  # Available filter options based on current results
+  facets: Citisignal_ProductFacetsResult!
+  
+  # Total count across both (for consistency)
+  totalCount: Int
+}
+
+# Main query for search and filter operations
+extend type Query {
+  Citisignal_productSearchFilter(
+    # Search phrase - when provided, uses AI-powered Live Search
+    phrase: String
+    
+    # Filter criteria - works with or without search
+    filter: Citisignal_ProductFilter
+    
+    # Sort options
+    sort: Citisignal_SortInput
+    
+    # Pagination
+    limit: Int = 20
+    page: Int = 1
+  ): Citisignal_ProductSearchFilterResult
+}
