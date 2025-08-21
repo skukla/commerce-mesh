@@ -131,7 +131,7 @@ function processResolversWithMappings() {
 const FACET_MAPPINGS = ${JSON.stringify(facetMappings, null, 2)};
 
 // Helper functions for facet mapping
-const getUrlKey = (attributeCode) => {
+const attributeCodeToUrlKey = (attributeCode) => {
   // Check for explicit mapping
   if (FACET_MAPPINGS.mappings && FACET_MAPPINGS.mappings[attributeCode]) {
     return FACET_MAPPINGS.mappings[attributeCode];
@@ -161,7 +161,7 @@ const getUrlKey = (attributeCode) => {
   return urlKey;
 };
 
-const getAttributeCode = (urlKey) => {
+const urlKeyToAttributeCode = (urlKey) => {
   // Find the attribute code for a URL key
   if (FACET_MAPPINGS.mappings) {
     for (const [attributeCode, mappedKey] of Object.entries(FACET_MAPPINGS.mappings)) {

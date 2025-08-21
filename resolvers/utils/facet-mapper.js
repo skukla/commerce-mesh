@@ -16,7 +16,7 @@ const mappingConfig = require('../../config/facet-mappings.json');
  * - cs_manufacturer -> manufacturer (explicit mapping)
  * - cs_new_feature -> new-feature (auto-cleaned)
  */
-function getUrlKey(attributeCode) {
+function attributeCodeToUrlKey(attributeCode) {
   // Check for explicit mapping first
   if (mappingConfig.mappings[attributeCode]) {
     return mappingConfig.mappings[attributeCode];
@@ -52,7 +52,7 @@ function getUrlKey(attributeCode) {
  * - manufacturer -> cs_manufacturer
  * - storage -> cs_memory
  */
-function getAttributeCode(urlKey) {
+function urlKeyToAttributeCode(urlKey) {
   // Look through mappings to find the attribute code
   for (const [attributeCode, mappedKey] of Object.entries(mappingConfig.mappings)) {
     if (mappedKey === urlKey) {
@@ -88,7 +88,7 @@ function mapUrlFiltersToAttributeCodes(urlFilters) {
   const mappedFilters = {};
 
   Object.entries(urlFilters).forEach(([urlKey, value]) => {
-    const attributeCode = getAttributeCode(urlKey);
+    const attributeCode = urlKeyToAttributeCode(urlKey);
     mappedFilters[attributeCode] = value;
   });
 
@@ -100,7 +100,7 @@ function mapUrlFiltersToAttributeCodes(urlFilters) {
  * Adds the URL key while preserving Adobe's data
  */
 function transformFacet(facet) {
-  const urlKey = getUrlKey(facet.attribute);
+  const urlKey = attributeCodeToUrlKey(facet.attribute);
 
   return {
     title: facet.title || urlKey, // Use Adobe's title, fallback to key
@@ -117,8 +117,8 @@ function transformFacet(facet) {
 }
 
 module.exports = {
-  getUrlKey,
-  getAttributeCode,
+  attributeCodeToUrlKey,
+  urlKeyToAttributeCode,
   mapUrlFiltersToAttributeCodes,
   transformFacet,
 };

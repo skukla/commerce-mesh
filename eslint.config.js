@@ -29,8 +29,8 @@ module.exports = [
     languageOptions: {
       globals: {
         FACET_MAPPINGS: 'readonly',
-        getUrlKey: 'readonly',
-        getAttributeCode: 'readonly',
+        attributeCodeToUrlKey: 'readonly',
+        urlKeyToAttributeCode: 'readonly',
       },
     },
   },
