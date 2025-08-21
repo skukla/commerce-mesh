@@ -243,7 +243,8 @@ const normalizeFilterValue = (value) => {
  * Format price for display with currency symbol and thousands separator
  */
 const formatPrice = (amount) => {
-  if (!amount) return null;
+  // Always return a string for non-nullable price field
+  if (!amount && amount !== 0) return '$0.00';
   return `$${amount.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`;
 };
 
