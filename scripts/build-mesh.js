@@ -84,20 +84,113 @@ function combineSchemaFiles() {
   return combinedSchema.trim();
 }
 
-/**
- * Get all resolver files
- */
-function getResolverFiles() {
-  const resolversDir = path.join(__dirname, '..', 'resolvers');
+// Note: getResolverFiles function removed in favor of processResolversWithMappings
 
-  // Automatically include all .js files in the resolvers directory
+/**
+ * Process resolver files to inject facet mappings
+ * This creates processed versions with the mappings injected
+ */
+function processResolversWithMappings() {
+  const resolversDir = path.join(__dirname, '..', 'resolvers');
+  const processedDir = path.join(__dirname, '..', 'resolvers-processed');
+
+  // Create processed directory if it doesn't exist
+  if (!fs.existsSync(processedDir)) {
+    fs.mkdirSync(processedDir);
+  }
+
+  // Load facet mappings
+  let facetMappings = {};
+  try {
+    const mappingsPath = path.join(__dirname, '..', 'config', 'facet-mappings.json');
+    if (fs.existsSync(mappingsPath)) {
+      facetMappings = JSON.parse(fs.readFileSync(mappingsPath, 'utf8'));
+    }
+  } catch {
+    console.log(format.warning('No facet-mappings.json found, proceeding without URL mappings'));
+  }
+
+  // Inject mappings into each resolver (excluding template and utility files)
   const resolverFiles = fs
     .readdirSync(resolversDir)
-    .filter((file) => file.endsWith('.js'))
-    .sort() // Sort for consistent output order
-    .map((file) => `./resolvers/${file}`);
+    .filter(
+      (file) => file.endsWith('.js') && !file.includes('template') && !file.includes('utils')
+    );
 
-  return resolverFiles;
+  resolverFiles.forEach((file) => {
+    const originalPath = path.join(resolversDir, file);
+    const processedPath = path.join(processedDir, file);
+
+    let content = fs.readFileSync(originalPath, 'utf8');
+
+    // Inject the facet mappings at the beginning of the file
+    const injection = `
+// ============================================================================
+// INJECTED FACET MAPPINGS - Added during build from config/facet-mappings.json
+// ============================================================================
+const FACET_MAPPINGS = ${JSON.stringify(facetMappings, null, 2)};
+
+// Helper functions for facet mapping
+const getUrlKey = (attributeCode) => {
+  // Check for explicit mapping
+  if (FACET_MAPPINGS.mappings && FACET_MAPPINGS.mappings[attributeCode]) {
+    return FACET_MAPPINGS.mappings[attributeCode];
+  }
+  
+  // Apply default transformations
+  let urlKey = attributeCode;
+  if (FACET_MAPPINGS.defaults) {
+    // Remove prefixes
+    (FACET_MAPPINGS.defaults.removePrefix || []).forEach(prefix => {
+      if (urlKey.startsWith(prefix)) {
+        urlKey = urlKey.substring(prefix.length);
+      }
+    });
+    
+    // Replace underscores
+    if (FACET_MAPPINGS.defaults.replaceUnderscore) {
+      urlKey = urlKey.replace(/_/g, '-');
+    }
+    
+    // Convert to lowercase
+    if (FACET_MAPPINGS.defaults.toLowerCase) {
+      urlKey = urlKey.toLowerCase();
+    }
+  }
+  
+  return urlKey;
+};
+
+const getAttributeCode = (urlKey) => {
+  // Find the attribute code for a URL key
+  if (FACET_MAPPINGS.mappings) {
+    for (const [attributeCode, mappedKey] of Object.entries(FACET_MAPPINGS.mappings)) {
+      if (mappedKey === urlKey) {
+        return attributeCode;
+      }
+    }
+  }
+  
+  // If no mapping found, try to reverse the default transformations
+  // This is a best-effort approach
+  return urlKey.replace(/-/g, '_');
+};
+
+// ============================================================================
+// ORIGINAL RESOLVER CODE BELOW
+// ============================================================================
+`;
+
+    // Write the processed file
+    fs.writeFileSync(processedPath, injection + content, 'utf8');
+  });
+
+  // Return the processed resolver paths (excluding templates)
+  return fs
+    .readdirSync(processedDir)
+    .filter((file) => file.endsWith('.js') && !file.includes('template') && !file.includes('utils'))
+    .sort()
+    .map((file) => `./resolvers-processed/${file}`);
 }
 
 /**
@@ -195,9 +288,9 @@ async function generateMeshConfig() {
     spinner.text = format.muted('Combining GraphQL schema files');
     const combinedSchema = combineSchemaFiles();
 
-    // Get all resolver files
-    spinner.text = format.muted('Loading resolver files');
-    const resolverFiles = getResolverFiles();
+    // Process resolver files with facet mappings
+    spinner.text = format.muted('Injecting facet mappings into resolvers');
+    const resolverFiles = processResolversWithMappings();
 
     // Add the combined schema and resolvers to the config
     meshConfig.meshConfig.additionalTypeDefs = combinedSchema;
@@ -216,7 +309,8 @@ async function generateMeshConfig() {
     console.log(
       format.muted(`  - Combined ${combinedSchema.split('\n').length} lines of GraphQL schema`)
     );
-    console.log(format.muted(`  - Loaded ${resolverFiles.length} resolver files`));
+    console.log(format.muted(`  - Processed ${resolverFiles.length} resolvers`));
+    console.log(format.muted('  - Injected facet mappings for SEO-friendly URLs'));
 
     return true;
   } catch (error) {
