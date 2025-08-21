@@ -1,11 +1,56 @@
 # Facet Implementation Guide
 
 ## Overview
-This document covers the implementation details for product facets (filters) in the Adobe API Mesh resolvers, including critical requirements for proper facet count display and multiple filter support.
+
+This document covers the implementation details for product facets (filters) in the Adobe API Mesh resolvers, including dynamic facet support and SEO-friendly URL mapping.
+
+## Dynamic Facet Architecture
+
+### Core Components
+
+1. **JSON Scalar Type** - Enables dynamic filter support:
+
+   ```graphql
+   scalar JSON # Allows filter.facets to accept any key-value pairs
+   input Citisignal_ProductFilter {
+     facets: JSON # Dynamic filters from Adobe Commerce
+     # Legacy fields kept for compatibility
+   }
+   ```
+
+2. **Facet Mapping Configuration** (`config/facet-mappings.json`):
+
+   ```json
+   {
+     "mappings": {
+       "cs_manufacturer": "manufacturer",  # SEO-friendly URLs
+       "cs_memory": "storage"
+     },
+     "defaults": {
+       "removePrefix": ["cs_", "attr_"],
+       "replaceUnderscore": true,
+       "toLowerCase": true
+     }
+   }
+   ```
+
+3. **Build-Time Injection** - Mappings are injected into resolvers at build time:
+   - Avoids API Mesh import limitations
+   - Creates `resolvers-processed/` directory with injected code
+   - Adds `getUrlKey()` and `getAttributeCode()` helper functions
+
+### Data Flow
+
+1. **Adobe → Mesh**: Facets come with technical attribute codes (e.g., `cs_manufacturer`)
+2. **Mesh Processing**: Converts to SEO-friendly keys using mappings
+3. **Mesh → Frontend**: Returns both `key` (for URLs) and `attributeCode` (for reference)
+4. **Frontend → Mesh**: Sends filters using clean URL keys
+5. **Mesh → Adobe**: Converts keys back to attribute codes for queries
 
 ## Key Concepts
 
 ### GraphQL Inline Fragments for Bucket Types
+
 Adobe Commerce APIs return facet buckets as union types that require inline fragments to access the count field:
 
 ```graphql
@@ -33,37 +78,39 @@ facets {
 ```
 
 For Catalog Service, use the `Catalog_` prefix:
+
 - `Catalog_ScalarBucket`
 - `Catalog_RangeBucket`
 
 For Live Search, use the `Search_` prefix:
+
 - `Search_ScalarBucket`
 - `Search_RangeBucket`
 
 ## Filter Implementation
 
-### Supported Filters
-All resolvers support the following filters:
+### Dynamic Filter Support
 
-1. **Category** (`categoryUrlKey`)
-   - Live Search: `categories` attribute
-   - Catalog Service: `categoryPath` attribute
+The system now supports ANY filters configured in Adobe Commerce:
 
-2. **Manufacturer** (`manufacturer`)
-   - Attribute: `cs_manufacturer`
-   - Case-insensitive via `normalizeFilterValue()`
+````javascript
+// Frontend sends clean URL keys
+filter: {
+  facets: {
+    "manufacturer": "Apple",
+    "storage": "256GB",
+    "color": "black",
+    "price": "300-500"
+  }
+}
 
-3. **Memory** (`memory`)
-   - Attribute: `cs_memory`
-   - Accepts single value or array
-
-4. **Colors** (`colors`)
-   - Attribute: `cs_color`
-   - Always expects array
-
-5. **Price Range** (`priceMin`, `priceMax`)
-   - Attribute: `price`
-   - Uses range object
+// Mesh converts to Adobe attribute codes
+filters: [
+  { attribute: "cs_manufacturer", in: ["Apple"] },
+  { attribute: "cs_memory", in: ["256GB"] },
+  { attribute: "cs_color", in: ["black"] },
+  { attribute: "price", range: { from: 300, to: 500 } }
+]
 
 ### Filter Normalization
 
@@ -76,59 +123,47 @@ const normalizeFilterValue = (value) => {
 
 // Examples:
 // "apple" → "Apple"
-// "APPLE" → "Apple" 
+// "APPLE" → "Apple"
 // "Apple" → "Apple"
-```
+````
 
-### Building Filters
+### Building Filters with Dynamic Support
 
 ```javascript
 const buildLiveSearchFilters = (filter) => {
   const searchFilters = [];
-  
-  // Category filter
+
+  // Category filter (still separate for clarity)
   if (filter.categoryUrlKey) {
     searchFilters.push({
       attribute: 'categories',
-      in: [filter.categoryUrlKey]
+      in: [filter.categoryUrlKey],
     });
   }
-  
-  // Manufacturer with normalization
-  if (filter.manufacturer) {
-    searchFilters.push({
-      attribute: 'cs_manufacturer',
-      in: [normalizeFilterValue(filter.manufacturer)]
-    });
-  }
-  
-  // Memory filter
-  if (filter.memory) {
-    searchFilters.push({
-      attribute: 'cs_memory',
-      in: Array.isArray(filter.memory) ? filter.memory : [filter.memory]
-    });
-  }
-  
-  // Color filter
-  if (filter.colors && filter.colors.length > 0) {
-    searchFilters.push({
-      attribute: 'cs_color',
-      in: filter.colors
-    });
-  }
-  
-  // Price range
-  if (filter.priceMin !== undefined || filter.priceMax !== undefined) {
-    searchFilters.push({
-      attribute: 'price',
-      range: {
-        from: filter.priceMin || 0,
-        to: filter.priceMax || 999999
+
+  // Dynamic facets - supports ANY Adobe attributes
+  if (filter.facets && typeof filter.facets === 'object') {
+    Object.entries(filter.facets).forEach(([urlKey, value]) => {
+      // Convert URL key back to Adobe attribute code
+      const attributeCode = getAttributeCode(urlKey);
+
+      if (attributeCode === 'price' && Array.isArray(value)) {
+        // Special handling for price ranges
+        const [min, max] = value[0].split('-').map(parseFloat);
+        searchFilters.push({
+          attribute: attributeCode,
+          range: { from: min || 0, to: max || 999999 },
+        });
+      } else if (value) {
+        // All other attributes
+        searchFilters.push({
+          attribute: attributeCode,
+          in: Array.isArray(value) ? value : [value],
+        });
       }
     });
   }
-  
+
   return searchFilters;
 };
 ```
@@ -136,6 +171,7 @@ const buildLiveSearchFilters = (filter) => {
 ## Multiple Facet Filtering
 
 Filters are cumulative using AND logic:
+
 - Apple → Shows all Apple products
 - Apple + 256GB → Shows only Apple products with 256GB option
 - Apple + 256GB + Black → Shows only black Apple products with 256GB
@@ -190,7 +226,10 @@ curl -X POST $MESH_ENDPOINT \
 ## Best Practices
 
 1. **Always use inline fragments** for facet buckets
-2. **Normalize string filters** for case-insensitive matching
-3. **Handle arrays properly** for multi-value filters
-4. **Test with curl** before deploying to verify counts
-5. **Keep filter logic consistent** across all resolvers
+2. **Use build-time injection** for shared configuration/utilities
+3. **Map URLs for SEO** - Clean keys in URLs, technical codes in queries
+4. **Support dynamic attributes** - Use JSON scalar for extensibility
+5. **Test with curl** before deploying to verify counts
+6. **Keep filter logic consistent** across all resolvers
+7. **Document mappings** - Keep `facet-mappings.json` documented
+8. **Preserve display names** - Always use Adobe's title field, not hard-coded names
