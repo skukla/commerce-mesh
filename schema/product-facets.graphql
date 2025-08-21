@@ -8,7 +8,8 @@ type Citisignal_FacetOption {
 
 type Citisignal_Facet {
   title: String!
-  key: String!
+  key: String!          # Clean key for display (e.g., "manufacturer")
+  attributeCode: String! # Original Adobe attribute code for filtering (e.g., "cs_manufacturer")
   type: String!
   options: [Citisignal_FacetOption]!
 }

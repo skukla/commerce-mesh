@@ -97,8 +97,31 @@ const buildLiveSearchFilters = (filter) => {
     });
   }
 
-  // Manufacturer filter - needs cs_ prefix
-  // Normalize for case-insensitive matching ("apple" -> "Apple")
+  // Handle dynamic facets from JSON object
+  if (filter.facets && typeof filter.facets === 'object') {
+    Object.entries(filter.facets).forEach(([attributeCode, value]) => {
+      // Use the exact attribute code that Adobe returned
+      // Don't modify or add prefixes - Adobe knows its own attributes
+
+      if (attributeCode === 'price' && Array.isArray(value) && value.length > 0) {
+        // Special handling for price ranges
+        const [min, max] = value[0].split('-').map(parseFloat);
+        searchFilters.push({
+          attribute: attributeCode,
+          range: { from: min || 0, to: max || 999999 },
+        });
+      } else if (value && (Array.isArray(value) ? value.length > 0 : true)) {
+        // All other attributes use 'in' filter
+        searchFilters.push({
+          attribute: attributeCode,
+          in: Array.isArray(value) ? value : [value],
+        });
+      }
+    });
+  }
+
+  // Legacy support - handle old filter format
+  // TODO: Remove after frontend migration
   if (filter.manufacturer) {
     searchFilters.push({
       attribute: 'cs_manufacturer',
@@ -106,7 +129,6 @@ const buildLiveSearchFilters = (filter) => {
     });
   }
 
-  // Memory filter
   if (filter.memory) {
     searchFilters.push({
       attribute: 'cs_memory',
@@ -114,7 +136,6 @@ const buildLiveSearchFilters = (filter) => {
     });
   }
 
-  // Color filter
   if (filter.color && filter.color.length > 0) {
     searchFilters.push({
       attribute: 'cs_color',
@@ -122,9 +143,8 @@ const buildLiveSearchFilters = (filter) => {
     });
   }
 
-  // Price range filter
-  if (filter.price && filter.price.length > 0) {
-    // Parse the first price range (radio selection, only one allowed)
+  if (!filter.facets && filter.price && filter.price.length > 0) {
+    // Only use legacy price if facets.price is not set
     const [min, max] = filter.price[0].split('-').map((v) => parseFloat(v));
     searchFilters.push({
       attribute: 'price',
@@ -151,7 +171,28 @@ const buildCatalogFilters = (filter) => {
     });
   }
 
-  // Same manufacturer handling with normalization
+  // Handle dynamic facets from JSON object
+  if (filter.facets && typeof filter.facets === 'object') {
+    Object.entries(filter.facets).forEach(([attributeCode, value]) => {
+      // Use exact attribute codes from Adobe
+
+      if (attributeCode === 'price' && Array.isArray(value) && value.length > 0) {
+        const [min, max] = value[0].split('-').map(parseFloat);
+        catalogFilters.push({
+          attribute: attributeCode,
+          range: { from: min || 0, to: max || 999999 },
+        });
+      } else if (value && (Array.isArray(value) ? value.length > 0 : true)) {
+        catalogFilters.push({
+          attribute: attributeCode,
+          in: Array.isArray(value) ? value : [value],
+        });
+      }
+    });
+  }
+
+  // Legacy support - handle old filter format
+  // TODO: Remove after frontend migration
   if (filter.manufacturer) {
     catalogFilters.push({
       attribute: 'cs_manufacturer',
@@ -159,7 +200,6 @@ const buildCatalogFilters = (filter) => {
     });
   }
 
-  // Memory filter
   if (filter.memory) {
     catalogFilters.push({
       attribute: 'cs_memory',
@@ -167,7 +207,6 @@ const buildCatalogFilters = (filter) => {
     });
   }
 
-  // Color filter
   if (filter.color && filter.color.length > 0) {
     catalogFilters.push({
       attribute: 'cs_color',
@@ -175,9 +214,8 @@ const buildCatalogFilters = (filter) => {
     });
   }
 
-  // Same price range
-  if (filter.price && filter.price.length > 0) {
-    // Parse the first price range (radio selection, only one allowed)
+  if (!filter.facets && filter.price && filter.price.length > 0) {
+    // Only use legacy price if facets.price is not set
     const [min, max] = filter.price[0].split('-').map((v) => parseFloat(v));
     catalogFilters.push({
       attribute: 'price',
@@ -243,7 +281,10 @@ const transformFacets = (facets) => {
 
   return facets
     .map((facet) => {
-      // Clean technical attribute names (remove cs_ prefix)
+      // Preserve the original attribute code for filtering
+      const originalAttribute = facet.attribute; // e.g., "cs_manufacturer", "manufacturer", "custom_field"
+
+      // Clean technical attribute names (remove cs_ prefix) for display
       const cleanAttribute = cleanAttributeName(facet.attribute);
 
       // RESPECT ADMIN-CONFIGURED LABELS
@@ -255,7 +296,7 @@ const transformFacets = (facets) => {
       const options =
         facet.buckets?.map((bucket) => {
           // For price facets, format the display name
-          if (cleanAttribute === 'price' && bucket.title) {
+          if (facet.attribute === 'price' && bucket.title) {
             // Parse price range (e.g., "300.0-400.0")
             const match = bucket.title.match(/^(\d+(?:\.\d+)?)-(\d+(?:\.\d+)?)$/);
             if (match) {
@@ -283,9 +324,10 @@ const transformFacets = (facets) => {
         }) || [];
 
       return {
-        key: cleanAttribute,
+        key: cleanAttribute, // Clean key for frontend display
+        attributeCode: originalAttribute, // Actual code for filtering (preserves exact Adobe attribute)
         title: title,
-        type: cleanAttribute === 'price' ? 'radio' : 'checkbox', // Price uses radio, others use checkbox
+        type: facet.attribute === 'price' ? 'radio' : 'checkbox', // Price uses radio, others use checkbox
         options: options,
       };
     })

@@ -106,8 +106,28 @@ const buildCatalogFilters = (filter) => {
     });
   }
 
-  // Manufacturer filter - Adobe requires cs_ prefix
-  // Normalize for case-insensitive matching ("apple" -> "Apple")
+  // Handle dynamic facets from JSON object
+  if (filter.facets && typeof filter.facets === 'object') {
+    Object.entries(filter.facets).forEach(([attributeCode, value]) => {
+      // Use exact attribute codes from Adobe
+
+      if (attributeCode === 'price' && Array.isArray(value) && value.length > 0) {
+        const [min, max] = value[0].split('-').map(parseFloat);
+        catalogFilters.push({
+          attribute: attributeCode,
+          range: { from: min || 0, to: max || 999999 },
+        });
+      } else if (value && (Array.isArray(value) ? value.length > 0 : true)) {
+        catalogFilters.push({
+          attribute: attributeCode,
+          in: Array.isArray(value) ? value : [value],
+        });
+      }
+    });
+  }
+
+  // Legacy support - handle old filter format
+  // TODO: Remove after frontend migration
   if (filter.manufacturer) {
     catalogFilters.push({
       attribute: 'cs_manufacturer',
@@ -115,7 +135,6 @@ const buildCatalogFilters = (filter) => {
     });
   }
 
-  // Memory filter
   if (filter.memory) {
     catalogFilters.push({
       attribute: 'cs_memory',
@@ -123,7 +142,6 @@ const buildCatalogFilters = (filter) => {
     });
   }
 
-  // Color filter
   if (filter.color && filter.color.length > 0) {
     catalogFilters.push({
       attribute: 'cs_color',
@@ -131,9 +149,8 @@ const buildCatalogFilters = (filter) => {
     });
   }
 
-  // Price range filter - parse price range string
-  if (filter.price && filter.price.length > 0) {
-    // Parse the first price range (radio selection, only one allowed)
+  if (!filter.facets && filter.price && filter.price.length > 0) {
+    // Only use legacy price if facets.price is not set
     const [min, max] = filter.price[0].split('-').map((v) => parseFloat(v));
     catalogFilters.push({
       attribute: 'price',
@@ -160,7 +177,31 @@ const buildLiveSearchFilters = (filter) => {
     });
   }
 
-  // Same manufacturer handling with normalization
+  // Handle dynamic facets from JSON object
+  if (filter.facets && typeof filter.facets === 'object') {
+    Object.entries(filter.facets).forEach(([attributeCode, value]) => {
+      // Use the exact attribute code that Adobe returned
+      // Don't modify or add prefixes - Adobe knows its own attributes
+
+      if (attributeCode === 'price' && Array.isArray(value) && value.length > 0) {
+        // Special handling for price ranges
+        const [min, max] = value[0].split('-').map(parseFloat);
+        searchFilters.push({
+          attribute: attributeCode,
+          range: { from: min || 0, to: max || 999999 },
+        });
+      } else if (value && (Array.isArray(value) ? value.length > 0 : true)) {
+        // All other attributes use 'in' filter
+        searchFilters.push({
+          attribute: attributeCode,
+          in: Array.isArray(value) ? value : [value],
+        });
+      }
+    });
+  }
+
+  // Legacy support - handle old filter format
+  // TODO: Remove after frontend migration
   if (filter.manufacturer) {
     searchFilters.push({
       attribute: 'cs_manufacturer',
@@ -168,7 +209,6 @@ const buildLiveSearchFilters = (filter) => {
     });
   }
 
-  // Memory filter
   if (filter.memory) {
     searchFilters.push({
       attribute: 'cs_memory',
@@ -176,7 +216,6 @@ const buildLiveSearchFilters = (filter) => {
     });
   }
 
-  // Color filter
   if (filter.color && filter.color.length > 0) {
     searchFilters.push({
       attribute: 'cs_color',
@@ -184,9 +223,8 @@ const buildLiveSearchFilters = (filter) => {
     });
   }
 
-  // Same price range handling
-  if (filter.price && filter.price.length > 0) {
-    // Parse the first price range (radio selection, only one allowed)
+  if (!filter.facets && filter.price && filter.price.length > 0) {
+    // Only use legacy price if facets.price is not set
     const [min, max] = filter.price[0].split('-').map((v) => parseFloat(v));
     searchFilters.push({
       attribute: 'price',

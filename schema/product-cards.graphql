@@ -51,6 +51,10 @@ type Citisignal_ProductCardResult {
 # Filter input for product searches (includes category for standalone queries)
 input Citisignal_ProductFilter {
   categoryUrlKey: String  # Category URL key like "phones" or "accessories"
+  # Dynamic facets as JSON object - accepts any attribute codes from Adobe
+  # Example: {"cs_manufacturer": ["Apple"], "custom_field": ["value"]}
+  facets: JSON
+  # Legacy support - will be deprecated
   manufacturer: String
   memory: [String]
   color: [String]
@@ -60,6 +64,10 @@ input Citisignal_ProductFilter {
 
 # Filter input for page-level queries (category comes from resolver parameter)
 input Citisignal_PageFilter {
+  # Dynamic facets as JSON object - accepts any attribute codes from Adobe
+  # Example: {"cs_manufacturer": ["Apple"], "custom_field": ["value"]}
+  facets: JSON
+  # Legacy support - will be deprecated
   manufacturer: String
   memory: [String]
   color: [String]
