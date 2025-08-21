@@ -127,7 +127,8 @@ const buildCatalogFilters = (filter) => {
     });
   }
 
-  // Legacy filters removed - all filtering now goes through dynamic facets
+  // Handle onSaleOnly filter - special case that applies after fetching
+  // Note: This is handled post-fetch since Adobe doesn't have a direct filter for it
 
   return catalogFilters;
 };
@@ -543,15 +544,20 @@ const executeSearchMode = async (context, args) => {
     }
   });
 
-  const items = orderedSkus
+  let items = orderedSkus
     .map((sku) => productMap.get(sku))
     .filter(Boolean)
     .map(transformProductToCard);
 
+  // Apply onSaleOnly filter if specified
+  if (args.filter?.onSaleOnly) {
+    items = items.filter((item) => item.discountPercent > 0);
+  }
+
   return {
     items,
     pageInfo: liveSearchResult?.page_info,
-    totalCount: liveSearchResult?.total_count || 0,
+    totalCount: args.filter?.onSaleOnly ? items.length : liveSearchResult?.total_count || 0,
   };
 };
 
@@ -607,13 +613,18 @@ const executeCatalogMode = async (context, args) => {
     }`,
   });
 
-  const items =
+  let items =
     result?.items?.map((item) => transformProductToCard(item.productView)).filter(Boolean) || [];
+
+  // Apply onSaleOnly filter if specified
+  if (args.filter?.onSaleOnly) {
+    items = items.filter((item) => item.discountPercent > 0);
+  }
 
   return {
     items,
     pageInfo: result?.page_info,
-    totalCount: result?.total_count || 0,
+    totalCount: args.filter?.onSaleOnly ? items.length : result?.total_count || 0,
   };
 };
 
