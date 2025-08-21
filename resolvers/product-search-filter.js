@@ -60,13 +60,7 @@
 // SHARED UTILITIES - Reused from existing resolvers for consistency
 // ============================================================================
 
-/**
- * Clean technical prefixes from attribute names
- */
-const cleanAttributeName = (name) => {
-  if (!name) return name;
-  return name.startsWith('cs_') ? name.substring(3) : name;
-};
+// Note: cleanAttributeName functionality now replaced by getUrlKey() injected at build time
 
 /**
  * Normalize filter values for case-insensitive matching
@@ -80,7 +74,8 @@ const normalizeFilterValue = (value) => {
  * Format price for display
  */
 const formatPrice = (amount) => {
-  if (!amount) return null;
+  // Always return a string for non-nullable price field
+  if (!amount && amount !== 0) return '$0.00';
   return `$${amount.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`;
 };
 
@@ -95,9 +90,20 @@ const calculateDiscountPercent = (regularPrice, finalPrice) => {
 /**
  * Ensure HTTPS in URLs
  */
-const ensureHttps = (url) => {
-  if (!url) return url;
-  return url.startsWith('http://') ? url.replace('http://', 'https://') : url;
+const ensureHttpsUrl = (url) => {
+  if (!url || typeof url !== 'string') return url;
+
+  // Handle protocol-relative URLs (//domain.com)
+  if (url.startsWith('//')) {
+    return 'https:' + url;
+  }
+
+  // Replace HTTP with HTTPS
+  if (url.startsWith('http://')) {
+    return url.replace('http://', 'https://');
+  }
+
+  return url;
 };
 
 /**
@@ -135,7 +141,7 @@ const extractVariantOptions = (options) => {
 
   options.forEach((option) => {
     if (option.id?.startsWith('cs_')) {
-      const cleanOptionName = cleanAttributeName(option.id);
+      const cleanOptionName = getUrlKey(option.id);
 
       if (cleanOptionName === 'color' && option.values) {
         variantOptions.colors = option.values.map((v) => ({
@@ -170,38 +176,39 @@ const buildCatalogFilters = (filter) => {
     });
   }
 
-  if (filter.manufacturer) {
-    catalogFilters.push({
-      attribute: 'cs_manufacturer',
-      in: [normalizeFilterValue(filter.manufacturer)],
+  // Dynamic facets support - convert URL keys back to Adobe attribute codes
+  if (filter.facets && typeof filter.facets === 'object') {
+    Object.entries(filter.facets).forEach(([urlKey, value]) => {
+      const attributeCode = getAttributeCode(urlKey);
+      // Skip empty values
+      if (!value || (Array.isArray(value) && value.length === 0)) return;
+
+      // Special handling for price ranges
+      if (attributeCode === 'price' && typeof value === 'string' && value.includes('-')) {
+        const [min, max] = value.split('-').map((v) => parseFloat(v));
+        catalogFilters.push({
+          attribute: attributeCode,
+          range: { from: min || 0, to: max || 999999 },
+        });
+      } else if (value && (Array.isArray(value) ? value.length > 0 : true)) {
+        // Normalize values for manufacturer attribute
+        let normalizedValue = value;
+        if (attributeCode === 'cs_manufacturer' || attributeCode === 'manufacturer') {
+          normalizedValue = Array.isArray(value)
+            ? value.map((v) => normalizeFilterValue(v))
+            : normalizeFilterValue(value);
+        }
+
+        // All other attributes use 'in' filter
+        catalogFilters.push({
+          attribute: attributeCode,
+          in: Array.isArray(normalizedValue) ? normalizedValue : [normalizedValue],
+        });
+      }
     });
   }
 
-  if (filter.memory) {
-    catalogFilters.push({
-      attribute: 'cs_memory',
-      in: Array.isArray(filter.memory) ? filter.memory : [filter.memory],
-    });
-  }
-
-  if (filter.color && filter.color.length > 0) {
-    catalogFilters.push({
-      attribute: 'cs_color',
-      in: filter.color,
-    });
-  }
-
-  if (filter.price && filter.price.length > 0) {
-    // Parse the first price range (radio selection, only one allowed)
-    const [min, max] = filter.price[0].split('-').map((v) => parseFloat(v));
-    catalogFilters.push({
-      attribute: 'price',
-      range: {
-        from: min || 0,
-        to: max || 999999,
-      },
-    });
-  }
+  // Legacy filters removed - all filtering now goes through dynamic facets
 
   return catalogFilters;
 };
@@ -221,38 +228,39 @@ const buildLiveSearchFilters = (filter) => {
     });
   }
 
-  if (filter.manufacturer) {
-    searchFilters.push({
-      attribute: 'cs_manufacturer',
-      in: [normalizeFilterValue(filter.manufacturer)],
+  // Dynamic facets support - convert URL keys back to Adobe attribute codes
+  if (filter.facets && typeof filter.facets === 'object') {
+    Object.entries(filter.facets).forEach(([urlKey, value]) => {
+      const attributeCode = getAttributeCode(urlKey);
+      // Skip empty values
+      if (!value || (Array.isArray(value) && value.length === 0)) return;
+
+      // Special handling for price ranges
+      if (attributeCode === 'price' && typeof value === 'string' && value.includes('-')) {
+        const [min, max] = value.split('-').map((v) => parseFloat(v));
+        searchFilters.push({
+          attribute: attributeCode,
+          range: { from: min || 0, to: max || 999999 },
+        });
+      } else if (value && (Array.isArray(value) ? value.length > 0 : true)) {
+        // Normalize values for manufacturer attribute
+        let normalizedValue = value;
+        if (attributeCode === 'cs_manufacturer' || attributeCode === 'manufacturer') {
+          normalizedValue = Array.isArray(value)
+            ? value.map((v) => normalizeFilterValue(v))
+            : normalizeFilterValue(value);
+        }
+
+        // All other attributes use 'in' filter
+        searchFilters.push({
+          attribute: attributeCode,
+          in: Array.isArray(normalizedValue) ? normalizedValue : [normalizedValue],
+        });
+      }
     });
   }
 
-  if (filter.memory) {
-    searchFilters.push({
-      attribute: 'cs_memory',
-      in: Array.isArray(filter.memory) ? filter.memory : [filter.memory],
-    });
-  }
-
-  if (filter.color && filter.color.length > 0) {
-    searchFilters.push({
-      attribute: 'cs_color',
-      in: filter.color,
-    });
-  }
-
-  if (filter.price && filter.price.length > 0) {
-    // Parse the first price range (radio selection, only one allowed)
-    const [min, max] = filter.price[0].split('-').map((v) => parseFloat(v));
-    searchFilters.push({
-      attribute: 'price',
-      range: {
-        from: min || 0,
-        to: max || 999999,
-      },
-    });
-  }
+  // Legacy filters removed - all filtering now goes through dynamic facets
 
   return searchFilters;
 };
@@ -274,10 +282,10 @@ const transformProductToCard = (product) => {
 
   const isOnSale = regularPrice && finalPrice && finalPrice < regularPrice;
   const discountPercent = calculateDiscountPercent(regularPrice, finalPrice);
-  const cleanManufacturer = cleanAttributeName(manufacturer);
+  const cleanManufacturer = manufacturer ? getUrlKey(manufacturer) : manufacturer;
   const variantOptions = extractVariantOptions(product.options);
   const imageUrl = product.images?.[0]?.url;
-  const secureImageUrl = ensureHttps(imageUrl);
+  const secureImageUrl = ensureHttpsUrl(imageUrl);
 
   return {
     id: product.id,
@@ -307,20 +315,22 @@ const transformFacets = (facets) => {
 
   return facets
     .map((facet) => {
-      const cleanAttribute = cleanAttributeName(facet.attribute);
-      const title = facet.title || cleanAttribute;
+      const originalAttribute = facet.attribute;
+      const urlKey = getUrlKey(facet.attribute);
+      const title = facet.title || urlKey;
 
       // Determine facet type - price should be radio (single select)
-      const facetType = cleanAttribute === 'price' ? 'radio' : 'checkbox';
+      const facetType = urlKey === 'price' ? 'radio' : 'checkbox';
 
       return {
-        key: cleanAttribute,
+        key: urlKey,
+        attributeCode: originalAttribute, // Preserve original Adobe attribute code
         title: title,
         type: facetType,
         options:
           facet.buckets?.map((bucket) => {
             // For price facets, format the display name
-            if (cleanAttribute === 'price' && bucket.title) {
+            if (urlKey === 'price' && bucket.title) {
               // Parse price range (e.g., "300.0-400.0")
               const match = bucket.title.match(/^(\d+(?:\.\d+)?)-(\d+(?:\.\d+)?)$/);
               if (match) {

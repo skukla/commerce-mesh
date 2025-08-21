@@ -24,6 +24,24 @@ module.exports = [
     },
   },
   {
-    ignores: ['node_modules/**', 'build/**', 'mesh.json'],
+    // Special globals for resolver files that will be injected at build time
+    files: ['resolvers/**/*.js'],
+    languageOptions: {
+      globals: {
+        FACET_MAPPINGS: 'readonly',
+        getUrlKey: 'readonly',
+        getAttributeCode: 'readonly',
+      },
+    },
+  },
+  {
+    // Template file is not meant to be executed directly
+    files: ['resolvers/shared-utilities-template.js'],
+    rules: {
+      'no-unused-vars': 'off',
+    },
+  },
+  {
+    ignores: ['node_modules/**', 'build/**', 'mesh.json', 'resolvers-processed/**'],
   },
 ];

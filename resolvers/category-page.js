@@ -100,38 +100,39 @@ const buildCatalogFilters = (categoryUrlKey, pageFilter) => {
 
   // User-applied filters
   if (pageFilter) {
-    if (pageFilter.manufacturer) {
-      filters.push({
-        attribute: 'cs_manufacturer',
-        in: [normalizeFilterValue(pageFilter.manufacturer)],
+    // Dynamic facets support - convert URL keys back to Adobe attribute codes
+    if (pageFilter.facets && typeof pageFilter.facets === 'object') {
+      Object.entries(pageFilter.facets).forEach(([urlKey, value]) => {
+        const attributeCode = getAttributeCode(urlKey);
+        // Skip empty values
+        if (!value || (Array.isArray(value) && value.length === 0)) return;
+
+        // Special handling for price ranges
+        if (attributeCode === 'price' && typeof value === 'string' && value.includes('-')) {
+          const [min, max] = value.split('-').map((v) => parseFloat(v));
+          filters.push({
+            attribute: attributeCode,
+            range: { from: min || 0, to: max || 999999 },
+          });
+        } else if (value && (Array.isArray(value) ? value.length > 0 : true)) {
+          // Normalize values for manufacturer attribute
+          let normalizedValue = value;
+          if (attributeCode === 'cs_manufacturer' || attributeCode === 'manufacturer') {
+            normalizedValue = Array.isArray(value)
+              ? value.map((v) => normalizeFilterValue(v))
+              : normalizeFilterValue(value);
+          }
+
+          // All other attributes use 'in' filter
+          filters.push({
+            attribute: attributeCode,
+            in: Array.isArray(normalizedValue) ? normalizedValue : [normalizedValue],
+          });
+        }
       });
     }
 
-    if (pageFilter.memory) {
-      filters.push({
-        attribute: 'cs_memory',
-        in: Array.isArray(pageFilter.memory) ? pageFilter.memory : [pageFilter.memory],
-      });
-    }
-
-    if (pageFilter.color && pageFilter.color.length > 0) {
-      filters.push({
-        attribute: 'cs_color',
-        in: pageFilter.color,
-      });
-    }
-
-    if (pageFilter.price && pageFilter.price.length > 0) {
-      // Parse the first price range (radio selection, only one allowed)
-      const [min, max] = pageFilter.price[0].split('-').map((v) => parseFloat(v));
-      filters.push({
-        attribute: 'price',
-        range: {
-          from: min || 0,
-          to: max || 999999,
-        },
-      });
-    }
+    // Legacy filters removed - all filtering now goes through dynamic facets
   }
 
   return filters;
@@ -154,38 +155,39 @@ const buildLiveSearchFilters = (categoryUrlKey, pageFilter) => {
 
   // Rest is similar to Catalog
   if (pageFilter) {
-    if (pageFilter.manufacturer) {
-      filters.push({
-        attribute: 'cs_manufacturer',
-        in: [normalizeFilterValue(pageFilter.manufacturer)],
+    // Dynamic facets support - convert URL keys back to Adobe attribute codes
+    if (pageFilter.facets && typeof pageFilter.facets === 'object') {
+      Object.entries(pageFilter.facets).forEach(([urlKey, value]) => {
+        const attributeCode = getAttributeCode(urlKey);
+        // Skip empty values
+        if (!value || (Array.isArray(value) && value.length === 0)) return;
+
+        // Special handling for price ranges
+        if (attributeCode === 'price' && typeof value === 'string' && value.includes('-')) {
+          const [min, max] = value.split('-').map((v) => parseFloat(v));
+          filters.push({
+            attribute: attributeCode,
+            range: { from: min || 0, to: max || 999999 },
+          });
+        } else if (value && (Array.isArray(value) ? value.length > 0 : true)) {
+          // Normalize values for manufacturer attribute
+          let normalizedValue = value;
+          if (attributeCode === 'cs_manufacturer' || attributeCode === 'manufacturer') {
+            normalizedValue = Array.isArray(value)
+              ? value.map((v) => normalizeFilterValue(v))
+              : normalizeFilterValue(value);
+          }
+
+          // All other attributes use 'in' filter
+          filters.push({
+            attribute: attributeCode,
+            in: Array.isArray(normalizedValue) ? normalizedValue : [normalizedValue],
+          });
+        }
       });
     }
 
-    if (pageFilter.memory) {
-      filters.push({
-        attribute: 'cs_memory',
-        in: Array.isArray(pageFilter.memory) ? pageFilter.memory : [pageFilter.memory],
-      });
-    }
-
-    if (pageFilter.color && pageFilter.color.length > 0) {
-      filters.push({
-        attribute: 'cs_color',
-        in: pageFilter.color,
-      });
-    }
-
-    if (pageFilter.price && pageFilter.price.length > 0) {
-      // Parse the first price range (radio selection, only one allowed)
-      const [min, max] = pageFilter.price[0].split('-').map((v) => parseFloat(v));
-      filters.push({
-        attribute: 'price',
-        range: {
-          from: min || 0,
-          to: max || 999999,
-        },
-      });
-    }
+    // Legacy filters removed - all filtering now goes through dynamic facets
   }
 
   return filters;
@@ -199,13 +201,7 @@ const buildLiveSearchFilters = (categoryUrlKey, pageFilter) => {
 // BUSINESS LOGIC HELPERS - Reusable transformation functions
 // ============================================================================
 
-/**
- * Clean technical prefixes from attribute names
- */
-const cleanAttributeName = (name) => {
-  if (!name) return name;
-  return name.startsWith('cs_') ? name.substring(3) : name;
-};
+// Note: cleanAttributeName functionality now replaced by getUrlKey() injected at build time
 
 /**
  * Normalize filter values for case-insensitive matching
@@ -221,7 +217,8 @@ const normalizeFilterValue = (value) => {
  * Format price for display with currency symbol and thousands separator
  */
 const formatPrice = (amount) => {
-  if (!amount) return null;
+  // Always return a string for non-nullable price field
+  if (!amount && amount !== 0) return '$0.00';
   return `$${amount.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`;
 };
 
@@ -236,9 +233,20 @@ const calculateDiscountPercent = (regularPrice, finalPrice) => {
 /**
  * Ensure URL uses HTTPS protocol
  */
-const ensureHttps = (url) => {
-  if (!url) return url;
-  return url.startsWith('http://') ? url.replace('http://', 'https://') : url;
+const ensureHttpsUrl = (url) => {
+  if (!url || typeof url !== 'string') return url;
+
+  // Handle protocol-relative URLs (//domain.com)
+  if (url.startsWith('//')) {
+    return 'https:' + url;
+  }
+
+  // Replace HTTP with HTTPS
+  if (url.startsWith('http://')) {
+    return url.replace('http://', 'https://');
+  }
+
+  return url;
 };
 
 /**
@@ -278,7 +286,7 @@ const extractVariantOptions = (options) => {
   options.forEach((option) => {
     if (option.id?.startsWith('cs_')) {
       // Clean the option name using helper
-      const cleanOptionName = cleanAttributeName(option.id);
+      const cleanOptionName = getUrlKey(option.id);
 
       // Special handling for color options (include hex values)
       if (cleanOptionName === 'color' && option.values) {
@@ -314,10 +322,10 @@ const transformProductToCard = (product) => {
   // --- APPLY BUSINESS LOGIC ---
   const isOnSale = regularPrice && finalPrice && finalPrice < regularPrice;
   const discountPercent = calculateDiscountPercent(regularPrice, finalPrice);
-  const cleanManufacturer = cleanAttributeName(manufacturer);
+  const cleanManufacturer = manufacturer ? getUrlKey(manufacturer) : manufacturer;
   const variantOptions = extractVariantOptions(product.options);
   const imageUrl = product.images?.[0]?.url;
-  const secureImageUrl = ensureHttps(imageUrl);
+  const secureImageUrl = ensureHttpsUrl(imageUrl);
 
   // --- BUILD CUSTOM RESPONSE SHAPE ---
   return {
@@ -356,24 +364,26 @@ const transformFacets = (facets) => {
 
   return facets
     .map((facet) => {
-      // Clean the attribute name using helper
-      const cleanAttribute = cleanAttributeName(facet.attribute);
+      const originalAttribute = facet.attribute;
+      // Get SEO-friendly URL key using injected mapping function
+      const urlKey = getUrlKey(facet.attribute);
 
       // RESPECT ADMIN-CONFIGURED LABELS
-      // Use the title from Adobe if provided, otherwise use cleaned attribute
-      const title = facet.title || cleanAttribute;
+      // Use the title from Adobe if provided, otherwise use URL key
+      const title = facet.title || urlKey;
 
       // Determine facet type - price should be radio (single select)
-      const facetType = cleanAttribute === 'price' ? 'radio' : 'checkbox';
+      const facetType = urlKey === 'price' ? 'radio' : 'checkbox';
 
       return {
-        key: cleanAttribute,
+        key: urlKey,
+        attributeCode: originalAttribute, // Preserve original Adobe attribute code
         title: title,
         type: facetType,
         options:
           facet.buckets?.map((bucket) => {
             // For price facets, format the display name
-            if (cleanAttribute === 'price' && bucket.title) {
+            if (urlKey === 'price' && bucket.title) {
               // Parse price range (e.g., "300.0-400.0")
               const match = bucket.title.match(/^(\d+(?:\.\d+)?)-(\d+(?:\.\d+)?)$/);
               if (match) {

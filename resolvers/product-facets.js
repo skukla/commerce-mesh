@@ -49,24 +49,6 @@
 // HELPER FUNCTIONS - Shared utilities (copied due to mesh limitations)
 // ============================================================================
 
-/**
- * Clean technical prefixes from attribute names
- */
-const cleanAttributeName = (name) => {
-  if (!name) return name;
-  return name.startsWith('cs_') ? name.substring(3) : name;
-};
-
-/**
- * Normalize filter values for case-insensitive matching
- * Capitalizes first letter to match how brand names are typically stored
- * Examples: "apple" -> "Apple", "APPLE" -> "Apple", "Apple" -> "Apple"
- */
-const normalizeFilterValue = (value) => {
-  if (!value || typeof value !== 'string') return value;
-  return value.charAt(0).toUpperCase() + value.slice(1).toLowerCase();
-};
-
 // ============================================================================
 // FILTER TRANSFORMATION - Business filters to Adobe format
 // ============================================================================
@@ -99,9 +81,9 @@ const buildLiveSearchFilters = (filter) => {
 
   // Handle dynamic facets from JSON object
   if (filter.facets && typeof filter.facets === 'object') {
-    Object.entries(filter.facets).forEach(([attributeCode, value]) => {
-      // Use the exact attribute code that Adobe returned
-      // Don't modify or add prefixes - Adobe knows its own attributes
+    Object.entries(filter.facets).forEach(([urlKey, value]) => {
+      // Convert URL key back to Adobe attribute code
+      const attributeCode = getAttributeCode(urlKey);
 
       if (attributeCode === 'price' && Array.isArray(value) && value.length > 0) {
         // Special handling for price ranges
@@ -120,40 +102,7 @@ const buildLiveSearchFilters = (filter) => {
     });
   }
 
-  // Legacy support - handle old filter format
-  // TODO: Remove after frontend migration
-  if (filter.manufacturer) {
-    searchFilters.push({
-      attribute: 'cs_manufacturer',
-      in: [normalizeFilterValue(filter.manufacturer)],
-    });
-  }
-
-  if (filter.memory) {
-    searchFilters.push({
-      attribute: 'cs_memory',
-      in: Array.isArray(filter.memory) ? filter.memory : [filter.memory],
-    });
-  }
-
-  if (filter.color && filter.color.length > 0) {
-    searchFilters.push({
-      attribute: 'cs_color',
-      in: filter.color,
-    });
-  }
-
-  if (!filter.facets && filter.price && filter.price.length > 0) {
-    // Only use legacy price if facets.price is not set
-    const [min, max] = filter.price[0].split('-').map((v) => parseFloat(v));
-    searchFilters.push({
-      attribute: 'price',
-      range: {
-        from: min || 0,
-        to: max || 999999,
-      },
-    });
-  }
+  // Legacy filters removed - all filtering now goes through dynamic facets
 
   return searchFilters;
 };
@@ -173,8 +122,9 @@ const buildCatalogFilters = (filter) => {
 
   // Handle dynamic facets from JSON object
   if (filter.facets && typeof filter.facets === 'object') {
-    Object.entries(filter.facets).forEach(([attributeCode, value]) => {
-      // Use exact attribute codes from Adobe
+    Object.entries(filter.facets).forEach(([urlKey, value]) => {
+      // Convert URL key back to Adobe attribute code
+      const attributeCode = getAttributeCode(urlKey);
 
       if (attributeCode === 'price' && Array.isArray(value) && value.length > 0) {
         const [min, max] = value[0].split('-').map(parseFloat);
@@ -191,40 +141,7 @@ const buildCatalogFilters = (filter) => {
     });
   }
 
-  // Legacy support - handle old filter format
-  // TODO: Remove after frontend migration
-  if (filter.manufacturer) {
-    catalogFilters.push({
-      attribute: 'cs_manufacturer',
-      in: [normalizeFilterValue(filter.manufacturer)],
-    });
-  }
-
-  if (filter.memory) {
-    catalogFilters.push({
-      attribute: 'cs_memory',
-      in: Array.isArray(filter.memory) ? filter.memory : [filter.memory],
-    });
-  }
-
-  if (filter.color && filter.color.length > 0) {
-    catalogFilters.push({
-      attribute: 'cs_color',
-      in: filter.color,
-    });
-  }
-
-  if (!filter.facets && filter.price && filter.price.length > 0) {
-    // Only use legacy price if facets.price is not set
-    const [min, max] = filter.price[0].split('-').map((v) => parseFloat(v));
-    catalogFilters.push({
-      attribute: 'price',
-      range: {
-        from: min || 0,
-        to: max || 999999,
-      },
-    });
-  }
+  // Legacy filters removed - all filtering now goes through dynamic facets
 
   return catalogFilters;
 };
@@ -284,13 +201,13 @@ const transformFacets = (facets) => {
       // Preserve the original attribute code for filtering
       const originalAttribute = facet.attribute; // e.g., "cs_manufacturer", "manufacturer", "custom_field"
 
-      // Clean technical attribute names (remove cs_ prefix) for display
-      const cleanAttribute = cleanAttributeName(facet.attribute);
+      // Get SEO-friendly URL key using injected mapping function
+      const urlKey = getUrlKey(facet.attribute);
 
       // RESPECT ADMIN-CONFIGURED LABELS
       // Adobe Commerce admins can set custom labels for facets
       // We preserve their business decisions while cleaning technical details
-      const title = facet.title || cleanAttribute;
+      const title = facet.title || urlKey;
 
       // Transform buckets to consistent format - map to 'options' for our schema
       const options =
@@ -324,7 +241,7 @@ const transformFacets = (facets) => {
         }) || [];
 
       return {
-        key: cleanAttribute, // Clean key for frontend display
+        key: urlKey, // SEO-friendly URL key for frontend
         attributeCode: originalAttribute, // Actual code for filtering (preserves exact Adobe attribute)
         title: title,
         type: facet.attribute === 'price' ? 'radio' : 'checkbox', // Price uses radio, others use checkbox

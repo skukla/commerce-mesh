@@ -108,8 +108,9 @@ const buildCatalogFilters = (filter) => {
 
   // Handle dynamic facets from JSON object
   if (filter.facets && typeof filter.facets === 'object') {
-    Object.entries(filter.facets).forEach(([attributeCode, value]) => {
-      // Use exact attribute codes from Adobe
+    Object.entries(filter.facets).forEach(([urlKey, value]) => {
+      // Convert URL key back to Adobe attribute code
+      const attributeCode = getAttributeCode(urlKey);
 
       if (attributeCode === 'price' && Array.isArray(value) && value.length > 0) {
         const [min, max] = value[0].split('-').map(parseFloat);
@@ -126,40 +127,7 @@ const buildCatalogFilters = (filter) => {
     });
   }
 
-  // Legacy support - handle old filter format
-  // TODO: Remove after frontend migration
-  if (filter.manufacturer) {
-    catalogFilters.push({
-      attribute: 'cs_manufacturer',
-      in: [normalizeFilterValue(filter.manufacturer)],
-    });
-  }
-
-  if (filter.memory) {
-    catalogFilters.push({
-      attribute: 'cs_memory',
-      in: Array.isArray(filter.memory) ? filter.memory : [filter.memory],
-    });
-  }
-
-  if (filter.color && filter.color.length > 0) {
-    catalogFilters.push({
-      attribute: 'cs_color',
-      in: filter.color,
-    });
-  }
-
-  if (!filter.facets && filter.price && filter.price.length > 0) {
-    // Only use legacy price if facets.price is not set
-    const [min, max] = filter.price[0].split('-').map((v) => parseFloat(v));
-    catalogFilters.push({
-      attribute: 'price',
-      range: {
-        from: min || 0,
-        to: max || 999999,
-      },
-    });
-  }
+  // Legacy filters removed - all filtering now goes through dynamic facets
 
   return catalogFilters;
 };
@@ -179,9 +147,9 @@ const buildLiveSearchFilters = (filter) => {
 
   // Handle dynamic facets from JSON object
   if (filter.facets && typeof filter.facets === 'object') {
-    Object.entries(filter.facets).forEach(([attributeCode, value]) => {
-      // Use the exact attribute code that Adobe returned
-      // Don't modify or add prefixes - Adobe knows its own attributes
+    Object.entries(filter.facets).forEach(([urlKey, value]) => {
+      // Convert URL key back to Adobe attribute code
+      const attributeCode = getAttributeCode(urlKey);
 
       if (attributeCode === 'price' && Array.isArray(value) && value.length > 0) {
         // Special handling for price ranges
@@ -191,49 +159,24 @@ const buildLiveSearchFilters = (filter) => {
           range: { from: min || 0, to: max || 999999 },
         });
       } else if (value && (Array.isArray(value) ? value.length > 0 : true)) {
+        // Normalize values for manufacturer attribute
+        let normalizedValue = value;
+        if (attributeCode === 'cs_manufacturer' || attributeCode === 'manufacturer') {
+          normalizedValue = Array.isArray(value)
+            ? value.map((v) => normalizeFilterValue(v))
+            : normalizeFilterValue(value);
+        }
+
         // All other attributes use 'in' filter
         searchFilters.push({
           attribute: attributeCode,
-          in: Array.isArray(value) ? value : [value],
+          in: Array.isArray(normalizedValue) ? normalizedValue : [normalizedValue],
         });
       }
     });
   }
 
-  // Legacy support - handle old filter format
-  // TODO: Remove after frontend migration
-  if (filter.manufacturer) {
-    searchFilters.push({
-      attribute: 'cs_manufacturer',
-      in: [normalizeFilterValue(filter.manufacturer)],
-    });
-  }
-
-  if (filter.memory) {
-    searchFilters.push({
-      attribute: 'cs_memory',
-      in: Array.isArray(filter.memory) ? filter.memory : [filter.memory],
-    });
-  }
-
-  if (filter.color && filter.color.length > 0) {
-    searchFilters.push({
-      attribute: 'cs_color',
-      in: filter.color,
-    });
-  }
-
-  if (!filter.facets && filter.price && filter.price.length > 0) {
-    // Only use legacy price if facets.price is not set
-    const [min, max] = filter.price[0].split('-').map((v) => parseFloat(v));
-    searchFilters.push({
-      attribute: 'price',
-      range: {
-        from: min || 0,
-        to: max || 999999,
-      },
-    });
-  }
+  // Legacy filters removed - all filtering now goes through dynamic facets
 
   return searchFilters;
 };
@@ -297,9 +240,20 @@ const calculateDiscountPercent = (regularPrice, finalPrice) => {
 /**
  * Ensure URL uses HTTPS protocol
  */
-const ensureHttps = (url) => {
-  if (!url) return url;
-  return url.startsWith('http://') ? url.replace('http://', 'https://') : url;
+const ensureHttpsUrl = (url) => {
+  if (!url || typeof url !== 'string') return url;
+
+  // Handle protocol-relative URLs (//domain.com)
+  if (url.startsWith('//')) {
+    return 'https:' + url;
+  }
+
+  // Replace HTTP with HTTPS
+  if (url.startsWith('http://')) {
+    return url.replace('http://', 'https://');
+  }
+
+  return url;
 };
 
 /**
@@ -410,7 +364,7 @@ const transformProductToCard = (product) => {
   const cleanManufacturer = cleanAttributeName(manufacturer);
   const variantOptions = extractVariantOptions(product.options);
   const imageUrl = product.images?.[0]?.url;
-  const secureImageUrl = ensureHttps(imageUrl);
+  const secureImageUrl = ensureHttpsUrl(imageUrl);
 
   // --- BUILD CUSTOM RESPONSE SHAPE ---
   return {
