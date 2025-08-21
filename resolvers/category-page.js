@@ -114,19 +114,21 @@ const buildCatalogFilters = (categoryUrlKey, pageFilter) => {
       });
     }
 
-    if (pageFilter.colors && pageFilter.colors.length > 0) {
+    if (pageFilter.color && pageFilter.color.length > 0) {
       filters.push({
         attribute: 'cs_color',
-        in: pageFilter.colors,
+        in: pageFilter.color,
       });
     }
 
-    if (pageFilter.priceMin !== undefined || pageFilter.priceMax !== undefined) {
+    if (pageFilter.price && pageFilter.price.length > 0) {
+      // Parse the first price range (radio selection, only one allowed)
+      const [min, max] = pageFilter.price[0].split('-').map((v) => parseFloat(v));
       filters.push({
         attribute: 'price',
         range: {
-          from: pageFilter.priceMin || 0,
-          to: pageFilter.priceMax || 999999,
+          from: min || 0,
+          to: max || 999999,
         },
       });
     }
@@ -166,19 +168,21 @@ const buildLiveSearchFilters = (categoryUrlKey, pageFilter) => {
       });
     }
 
-    if (pageFilter.colors && pageFilter.colors.length > 0) {
+    if (pageFilter.color && pageFilter.color.length > 0) {
       filters.push({
         attribute: 'cs_color',
-        in: pageFilter.colors,
+        in: pageFilter.color,
       });
     }
 
-    if (pageFilter.priceMin !== undefined || pageFilter.priceMax !== undefined) {
+    if (pageFilter.price && pageFilter.price.length > 0) {
+      // Parse the first price range (radio selection, only one allowed)
+      const [min, max] = pageFilter.price[0].split('-').map((v) => parseFloat(v));
       filters.push({
         attribute: 'price',
         range: {
-          from: pageFilter.priceMin || 0,
-          to: pageFilter.priceMax || 999999,
+          from: min || 0,
+          to: max || 999999,
         },
       });
     }
@@ -359,16 +363,42 @@ const transformFacets = (facets) => {
       // Use the title from Adobe if provided, otherwise use cleaned attribute
       const title = facet.title || cleanAttribute;
 
+      // Determine facet type - price should be radio (single select)
+      const facetType = cleanAttribute === 'price' ? 'radio' : 'checkbox';
+
       return {
         key: cleanAttribute,
         title: title,
-        type: 'checkbox', // All facets use checkbox for multi-select filtering
+        type: facetType,
         options:
-          facet.buckets?.map((bucket) => ({
-            id: bucket.title, // Use title as ID
-            name: bucket.title, // Display name
-            count: bucket.count || 0,
-          })) || [],
+          facet.buckets?.map((bucket) => {
+            // For price facets, format the display name
+            if (cleanAttribute === 'price' && bucket.title) {
+              // Parse price range (e.g., "300.0-400.0")
+              const match = bucket.title.match(/^(\d+(?:\.\d+)?)-(\d+(?:\.\d+)?)$/);
+              if (match) {
+                const min = parseFloat(match[1]);
+                const max = parseFloat(match[2]);
+
+                // Format with currency and thousands separator
+                const formattedMin = '$' + min.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+                const formattedMax = '$' + max.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+
+                return {
+                  id: bucket.title, // Keep original as ID for filtering
+                  name: formattedMin + ' - ' + formattedMax, // Formatted for display
+                  count: bucket.count || 0,
+                };
+              }
+            }
+
+            // Default handling for non-price facets
+            return {
+              id: bucket.title, // Use title as ID
+              name: bucket.title, // Display name
+              count: bucket.count || 0,
+            };
+          }) || [],
       };
     })
     .filter((facet) => facet.options.length > 0);
@@ -675,7 +705,7 @@ module.exports = {
   resolvers: {
     Query: {
       Citisignal_categoryPageData: {
-        resolve: async (root, args, context, _info) => {
+        resolve: async (_root, args, context, _info) => {
           try {
             // Execute all queries in parallel
             const { navigation, products, category } = await executeUnifiedQuery(context, args);

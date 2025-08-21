@@ -1,9 +1,9 @@
 /**
  * CITISIGNAL PRODUCT CARDS - CUSTOM GRAPHQL QUERY
- * 
+ *
  * This resolver demonstrates API Mesh's ability to create completely custom queries
  * with custom filters, custom business logic, and custom response shapes.
- * 
+ *
  * What Adobe gives us: Complex, nested, technical structures
  * What we deliver: Simple, flat, business-ready data
  */
@@ -14,7 +14,7 @@
 
 /**
  * Our Custom Query: Citisignal_productCards
- * 
+ *
  * INPUT:
  *   query {
  *     Citisignal_productCards(
@@ -30,7 +30,7 @@
  *       page: 1
  *     )
  *   }
- * 
+ *
  * OUTPUT - Our custom response shape:
  *   {
  *     items: [{
@@ -39,20 +39,20 @@
  *       sku: "IP15-PRO"
  *       name: "iPhone 15 Pro"
  *       urlKey: "iphone-15-pro"
- *       
+ *
  *       // Business fields with logic applied
  *       manufacturer: "Apple"        // Cleaned from "cs_manufacturer"
  *       price: "$999.99"            // Formatted with currency
  *       originalPrice: "$1,199.99"  // Only present if on sale
  *       discountPercent: 17         // Calculated business metric
  *       inStock: true
- *       
+ *
  *       // Simplified media
  *       image: {
  *         url: "https://..."        // Ensured HTTPS
  *         altText: "iPhone 15 Pro"
  *       }
- *       
+ *
  *       // Extracted variant options
  *       memory: ["128GB", "256GB", "512GB"]
  *       colors: [
@@ -60,7 +60,7 @@
  *         { name: "Blue", hex: "#4A90E2" }
  *       ]
  *     }],
- *     
+ *
  *     // Pagination with business logic
  *     totalCount: 42
  *     hasMoreItems: true  // Business logic: currentPage < totalPages
@@ -75,7 +75,7 @@
 
 /**
  * Transform business-friendly filters to service-specific formats
- * 
+ *
  * OUR CUSTOM FILTER (what frontend sends):
  *   filter: {
  *     categoryUrlKey: "phones",
@@ -83,116 +83,120 @@
  *     priceMin: 500,
  *     priceMax: 1500
  *   }
- * 
+ *
  * ADOBE'S REQUIRED FORMAT (what we transform it to):
  *   filter: [
  *     { attribute: "categoryPath", in: ["phones"] },
  *     { attribute: "cs_manufacturer", in: ["Apple"] },
  *     { attribute: "price", range: { from: 500, to: 1500 } }
  *   ]
- * 
+ *
  * Notice: Technical prefixes (cs_), nested structures, different attribute names
  */
 const buildCatalogFilters = (filter) => {
   if (!filter) return [];
-  
+
   const catalogFilters = [];
-  
+
   // Category filter - uses URL key like "phones"
   if (filter.categoryUrlKey) {
     catalogFilters.push({
       attribute: 'categoryPath',
-      in: [filter.categoryUrlKey]
+      in: [filter.categoryUrlKey],
     });
   }
-  
+
   // Manufacturer filter - Adobe requires cs_ prefix
   // Normalize for case-insensitive matching ("apple" -> "Apple")
   if (filter.manufacturer) {
     catalogFilters.push({
       attribute: 'cs_manufacturer',
-      in: [normalizeFilterValue(filter.manufacturer)]
+      in: [normalizeFilterValue(filter.manufacturer)],
     });
   }
-  
+
   // Memory filter
   if (filter.memory) {
     catalogFilters.push({
       attribute: 'cs_memory',
-      in: Array.isArray(filter.memory) ? filter.memory : [filter.memory]
+      in: Array.isArray(filter.memory) ? filter.memory : [filter.memory],
     });
   }
-  
+
   // Color filter
-  if (filter.colors && filter.colors.length > 0) {
+  if (filter.color && filter.color.length > 0) {
     catalogFilters.push({
       attribute: 'cs_color',
-      in: filter.colors
+      in: filter.color,
     });
   }
-  
-  // Price range filter - converts min/max to range object
-  if (filter.priceMin !== undefined || filter.priceMax !== undefined) {
+
+  // Price range filter - parse price range string
+  if (filter.price && filter.price.length > 0) {
+    // Parse the first price range (radio selection, only one allowed)
+    const [min, max] = filter.price[0].split('-').map((v) => parseFloat(v));
     catalogFilters.push({
       attribute: 'price',
       range: {
-        from: filter.priceMin || 0,
-        to: filter.priceMax || 999999
-      }
+        from: min || 0,
+        to: max || 999999,
+      },
     });
   }
-  
+
   return catalogFilters;
 };
 
 const buildLiveSearchFilters = (filter) => {
   if (!filter) return [];
-  
+
   const searchFilters = [];
-  
+
   // Live Search uses 'categories' instead of 'categoryPath'
   if (filter.categoryUrlKey) {
     searchFilters.push({
       attribute: 'categories',
-      in: [filter.categoryUrlKey]
+      in: [filter.categoryUrlKey],
     });
   }
-  
+
   // Same manufacturer handling with normalization
   if (filter.manufacturer) {
     searchFilters.push({
       attribute: 'cs_manufacturer',
-      in: [normalizeFilterValue(filter.manufacturer)]
+      in: [normalizeFilterValue(filter.manufacturer)],
     });
   }
-  
+
   // Memory filter
   if (filter.memory) {
     searchFilters.push({
       attribute: 'cs_memory',
-      in: Array.isArray(filter.memory) ? filter.memory : [filter.memory]
+      in: Array.isArray(filter.memory) ? filter.memory : [filter.memory],
     });
   }
-  
+
   // Color filter
-  if (filter.colors && filter.colors.length > 0) {
+  if (filter.color && filter.color.length > 0) {
     searchFilters.push({
       attribute: 'cs_color',
-      in: filter.colors
+      in: filter.color,
     });
   }
-  
+
   // Same price range handling
-  if (filter.priceMin !== undefined || filter.priceMax !== undefined) {
+  if (filter.price && filter.price.length > 0) {
+    // Parse the first price range (radio selection, only one allowed)
+    const [min, max] = filter.price[0].split('-').map((v) => parseFloat(v));
     searchFilters.push({
       attribute: 'price',
       range: {
-        from: filter.priceMin || 0,
-        to: filter.priceMax || 999999
-      }
+        from: min || 0,
+        to: max || 999999,
+      },
     });
   }
-  
+
   return searchFilters;
 };
 
@@ -278,9 +282,7 @@ const extractPriceValue = (product, priceType, isComplex) => {
  */
 const findAttributeValue = (attributes, name) => {
   if (!attributes || !Array.isArray(attributes)) return null;
-  const attr = attributes.find(a => 
-    a.name === name || a.name === `cs_${name}`
-  );
+  const attr = attributes.find((a) => a.name === name || a.name === `cs_${name}`);
   return attr?.value;
 };
 
@@ -290,36 +292,36 @@ const findAttributeValue = (attributes, name) => {
  */
 const extractVariantOptions = (options) => {
   const variantOptions = {};
-  
+
   if (!options || !Array.isArray(options)) {
     return variantOptions;
   }
-  
-  options.forEach(option => {
+
+  options.forEach((option) => {
     if (option.id?.startsWith('cs_')) {
       // Clean the option name using helper
       const cleanOptionName = cleanAttributeName(option.id);
-      
+
       // Special handling for color options (include hex values)
       if (cleanOptionName === 'color' && option.values) {
-        variantOptions.colors = option.values.map(v => ({
+        variantOptions.colors = option.values.map((v) => ({
           name: v.title,
-          hex: v.value || '#000000'
+          hex: v.value || '#000000',
         }));
-      } 
+      }
       // Standard handling for other options (memory, storage, etc.)
       else if (option.values) {
-        variantOptions[cleanOptionName] = option.values.map(v => v.title);
+        variantOptions[cleanOptionName] = option.values.map((v) => v.title);
       }
     }
   });
-  
+
   return variantOptions;
 };
 
 /**
  * Transform complex Adobe product structure to our custom shape
- * 
+ *
  * INPUT (from Adobe):
  * {
  *   productView: {
@@ -341,7 +343,7 @@ const extractVariantOptions = (options) => {
  *     }
  *   }
  * }
- * 
+ *
  * OUTPUT (our custom shape):
  * {
  *   id: "123",
@@ -356,13 +358,13 @@ const extractVariantOptions = (options) => {
  */
 const transformProductToCard = (product) => {
   if (!product) return null;
-  
+
   // --- EXTRACT FROM NESTED STRUCTURES ---
   const isComplex = product.__typename === 'Catalog_ComplexProductView';
   const regularPrice = extractPriceValue(product, 'regular', isComplex);
   const finalPrice = extractPriceValue(product, 'final', isComplex);
   const manufacturer = findAttributeValue(product.attributes, 'manufacturer');
-  
+
   // --- APPLY BUSINESS LOGIC ---
   const isOnSale = regularPrice && finalPrice && finalPrice < regularPrice;
   const discountPercent = calculateDiscountPercent(regularPrice, finalPrice);
@@ -370,7 +372,7 @@ const transformProductToCard = (product) => {
   const variantOptions = extractVariantOptions(product.options);
   const imageUrl = product.images?.[0]?.url;
   const secureImageUrl = ensureHttps(imageUrl);
-  
+
   // --- BUILD CUSTOM RESPONSE SHAPE ---
   return {
     // Basic fields - flat structure
@@ -378,22 +380,24 @@ const transformProductToCard = (product) => {
     sku: product.sku,
     name: product.name,
     urlKey: product.urlKey || '',
-    
+
     // Business fields with transformations
     manufacturer: cleanManufacturer || null,
     price: formatPrice(finalPrice),
     originalPrice: isOnSale ? formatPrice(regularPrice) : null,
     discountPercent,
     inStock: product.inStock || false,
-    
+
     // Simplified media structure
-    image: imageUrl ? {
-      url: secureImageUrl,
-      altText: product.images[0].label || product.name
-    } : null,
-    
+    image: imageUrl
+      ? {
+          url: secureImageUrl,
+          altText: product.images[0].label || product.name,
+        }
+      : null,
+
     // Variant options - dynamically included based on what's available
-    ...variantOptions
+    ...variantOptions,
   };
 };
 
@@ -403,52 +407,54 @@ const transformProductToCard = (product) => {
 
 /**
  * Transform business-friendly sort to service-specific formats
- * 
+ *
  * OUR CUSTOM SORT (what frontend sends):
  *   sort: { attribute: "PRICE", direction: "ASC" }
- * 
+ *
  * ADOBE'S REQUIRED FORMAT:
  *   Catalog: { attribute: "price", direction: "ASC" }
  *   Live Search: [{ attribute: "price", direction: "ASC" }]  // Array format
- * 
+ *
  * Note: "RELEVANCE" only works with AI-powered Live Search, not Catalog
  */
 const mapSortForCatalog = (sort) => {
   if (!sort) return null;
-  
+
   // Catalog doesn't support AI relevance sorting
   if (sort.attribute === 'RELEVANCE') return null;
-  
+
   const attributeMap = {
-    'PRICE': 'price',
-    'NAME': 'name'
+    PRICE: 'price',
+    NAME: 'name',
   };
-  
+
   const fieldName = attributeMap[sort.attribute];
   if (!fieldName) return null;
-  
+
   return {
     attribute: fieldName,
-    direction: sort.direction || 'DESC'
+    direction: sort.direction || 'DESC',
   };
 };
 
 const mapSortForLiveSearch = (sort) => {
   if (!sort) return [];
-  
+
   const attributeMap = {
-    'PRICE': 'price',
-    'NAME': 'name',
-    'RELEVANCE': 'relevance'  // AI-powered sorting
+    PRICE: 'price',
+    NAME: 'name',
+    RELEVANCE: 'relevance', // AI-powered sorting
   };
-  
+
   const fieldName = attributeMap[sort.attribute];
   if (!fieldName) return [];
-  
-  return [{
-    attribute: fieldName,
-    direction: sort.direction || 'DESC'
-  }];
+
+  return [
+    {
+      attribute: fieldName,
+      direction: sort.direction || 'DESC',
+    },
+  ];
 };
 
 // ============================================================================
@@ -458,7 +464,7 @@ const mapSortForLiveSearch = (sort) => {
 const executeSearchMode = async (context, args) => {
   const liveSearchFilters = buildLiveSearchFilters(args.filter);
   const catalogFilters = buildCatalogFilters(args.filter);
-  
+
   // Run both queries in parallel - 50% faster than sequential
   const [liveSearchResult, catalogResult] = await Promise.all([
     // Get AI ranking from Live Search (minimal fields)
@@ -469,7 +475,7 @@ const executeSearchMode = async (context, args) => {
         filter: liveSearchFilters,
         page_size: args.limit || 24,
         current_page: args.page || 1,
-        sort: mapSortForLiveSearch(args.sort)
+        sort: mapSortForLiveSearch(args.sort),
       },
       context,
       selectionSet: `{
@@ -479,9 +485,9 @@ const executeSearchMode = async (context, args) => {
         }
         total_count
         page_info { current_page page_size total_pages }
-      }`
+      }`,
     }),
-    
+
     // Get full product details from Catalog
     context.CatalogServiceSandbox.Query.Catalog_productSearch({
       root: {},
@@ -490,7 +496,7 @@ const executeSearchMode = async (context, args) => {
         filter: catalogFilters,
         page_size: args.limit || 24,
         current_page: args.page || 1,
-        sort: mapSortForCatalog(args.sort)
+        sort: mapSortForCatalog(args.sort),
       },
       context,
       selectionSet: `{
@@ -526,33 +532,33 @@ const executeSearchMode = async (context, args) => {
             }
           }
         }
-      }`
-    })
+      }`,
+    }),
   ]);
-  
+
   // Merge results: AI ranking with full details
   const orderedSkus = [];
-  liveSearchResult?.items?.forEach(item => {
+  liveSearchResult?.items?.forEach((item) => {
     const sku = item.productView?.sku || item.product?.sku;
     if (sku) orderedSkus.push(sku);
   });
-  
+
   const productMap = new Map();
-  catalogResult?.items?.forEach(item => {
+  catalogResult?.items?.forEach((item) => {
     if (item.productView?.sku) {
       productMap.set(item.productView.sku, item.productView);
     }
   });
-  
+
   const items = orderedSkus
-    .map(sku => productMap.get(sku))
+    .map((sku) => productMap.get(sku))
     .filter(Boolean)
     .map(transformProductToCard);
-  
+
   return {
     items,
     pageInfo: liveSearchResult?.page_info,
-    totalCount: liveSearchResult?.total_count || 0
+    totalCount: liveSearchResult?.total_count || 0,
   };
 };
 
@@ -568,7 +574,7 @@ const executeCatalogMode = async (context, args) => {
       filter: buildCatalogFilters(args.filter),
       page_size: args.limit || 24,
       current_page: args.page || 1,
-      sort: mapSortForCatalog(args.sort)
+      sort: mapSortForCatalog(args.sort),
     },
     context,
     selectionSet: `{
@@ -605,17 +611,16 @@ const executeCatalogMode = async (context, args) => {
           }
         }
       }
-    }`
+    }`,
   });
-  
-  const items = result?.items
-    ?.map(item => transformProductToCard(item.productView))
-    .filter(Boolean) || [];
-  
+
+  const items =
+    result?.items?.map((item) => transformProductToCard(item.productView)).filter(Boolean) || [];
+
   return {
     items,
     pageInfo: result?.page_info,
-    totalCount: result?.total_count || 0
+    totalCount: result?.total_count || 0,
   };
 };
 
@@ -627,41 +632,40 @@ module.exports = {
   resolvers: {
     Query: {
       Citisignal_productCards: {
-        resolve: async (root, args, context, info) => {
+        resolve: async (_root, args, context, _info) => {
           try {
             // 1. Decide strategy based on user intent
             const useSearch = shouldUseLiveSearch(args);
-            
+
             // 2. Execute with appropriate service(s)
             const result = useSearch
               ? await executeSearchMode(context, args)
               : await executeCatalogMode(context, args);
-            
+
             // 3. Extract pagination data (with fallbacks for missing values)
             const currentPage = result.pageInfo?.current_page || args.page || 1;
             const totalPages = result.pageInfo?.total_pages || 1;
-            
+
             // 4. Return our custom response shape
             // Notice: We add "hasMoreItems" - a calculated business field
             // Adobe doesn't provide this, but frontends need it for pagination UI
             return {
               items: result.items || [],
               totalCount: result.totalCount,
-              hasMoreItems: currentPage < totalPages,  // Calculated: more pages available?
+              hasMoreItems: currentPage < totalPages, // Calculated: more pages available?
               currentPage: currentPage,
               page_info: {
                 current_page: currentPage,
                 page_size: result.pageInfo?.page_size || args.limit || 24,
-                total_pages: totalPages
+                total_pages: totalPages,
               },
             };
-            
           } catch (error) {
             console.error('Product cards resolver error:', error);
             throw error;
           }
-        }
-      }
-    }
-  }
+        },
+      },
+    },
+  },
 };

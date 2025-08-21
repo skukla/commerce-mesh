@@ -1,9 +1,9 @@
 /**
  * CITISIGNAL CATEGORY NAVIGATION - CUSTOM NAVIGATION API
- * 
+ *
  * This resolver demonstrates transforming Adobe Commerce's complex category tree
  * into clean, navigation-ready data structures for headers and footers.
- * 
+ *
  * What Adobe gives us: Deeply nested category hierarchy with technical fields
  * What we deliver: Clean navigation items ready for UI menus
  */
@@ -14,7 +14,7 @@
 
 /**
  * Our Custom Query: Citisignal_categoryNavigation
- * 
+ *
  * INPUT:
  *   query {
  *     Citisignal_categoryNavigation(
@@ -22,7 +22,7 @@
  *       maxItems: 6        // Limit items for clean UI
  *     )
  *   }
- * 
+ *
  * OUTPUT - Our navigation-ready structure:
  *   {
  *     navigation: [{
@@ -39,15 +39,15 @@
  *       }]
  *     }]
  *   }
- * 
+ *
  */
 
 // ============================================================================
 // CONFIGURATION - Business rules for navigation
 // ============================================================================
 
-const DEFAULT_HEADER_NAV_ITEMS = 6;  // Keep header clean
-const DEFAULT_FOOTER_NAV_ITEMS = 4;  // Smaller footer menu
+const DEFAULT_HEADER_NAV_ITEMS = 6; // Keep header clean
+const DEFAULT_FOOTER_NAV_ITEMS = 4; // Smaller footer menu
 
 // ============================================================================
 // DATA TRANSFORMATION - Complex hierarchy to clean navigation
@@ -55,7 +55,7 @@ const DEFAULT_FOOTER_NAV_ITEMS = 4;  // Smaller footer menu
 
 /**
  * Transform Adobe's category structure to navigation items
- * 
+ *
  * ADOBE'S COMMERCE STRUCTURE:
  * {
  *   uid: "Mg==",
@@ -76,7 +76,7 @@ const DEFAULT_FOOTER_NAV_ITEMS = 4;  // Smaller footer menu
  *     children: [...]
  *   }]
  * }
- * 
+ *
  * OUR CLEAN NAVIGATION ITEM:
  * {
  *   id: "4",
@@ -90,33 +90,33 @@ const DEFAULT_FOOTER_NAV_ITEMS = 4;  // Smaller footer menu
  */
 const transformCategory = (category) => {
   if (!category) return null;
-  
+
   // Build navigation-ready fields
   const href = category.url_path ? `/${category.url_path}` : '/';
-  
+
   return {
     // Essential navigation fields
     id: String(category.id || category.uid),
     name: category.name || '',
-    href: href,                          // Ready-to-use link
-    label: category.name || '',          // Display text
-    
+    href: href, // Ready-to-use link
+    label: category.name || '', // Display text
+
     // Hierarchy and ordering
     level: category.level || 0,
     position: category.position || 0,
-    
+
     // Metadata for filtering
     includeInMenu: category.include_in_menu === 1 || category.include_in_menu === true,
     isActive: category.is_active === true || category.is_active === 1,
     productCount: category.product_count || 0,
-    
+
     // Nested navigation (recursive transformation)
     children: category.children?.map(transformCategory).filter(Boolean) || [],
-    
+
     // Additional fields for advanced use
     urlPath: category.url_path || '',
     urlKey: category.url_key || '',
-    parentId: category.parent_id || null
+    parentId: category.parent_id || null,
   };
 };
 
@@ -130,20 +130,21 @@ const transformCategory = (category) => {
  */
 const filterForNavigation = (categories, maxItems = 10) => {
   if (!categories || !Array.isArray(categories)) return [];
-  
+
   return categories
-    .filter(cat => 
-      cat.includeInMenu &&     // Admin marked for menu
-      cat.isActive &&          // Currently active
-      cat.name &&              // Has a name to display
-      cat.href                 // Has a valid URL
+    .filter(
+      (cat) =>
+        cat.includeInMenu && // Admin marked for menu
+        cat.isActive && // Currently active
+        cat.name && // Has a name to display
+        cat.href // Has a valid URL
     )
-    .sort((a, b) => a.position - b.position)  // Respect admin ordering
-    .slice(0, maxItems)        // Limit for clean UI
-    .map(cat => ({
+    .sort((a, b) => a.position - b.position) // Respect admin ordering
+    .slice(0, maxItems) // Limit for clean UI
+    .map((cat) => ({
       ...cat,
       // Recursively filter children
-      children: filterForNavigation(cat.children, maxItems)
+      children: filterForNavigation(cat.children, maxItems),
     }));
 };
 
@@ -152,10 +153,9 @@ const filterForNavigation = (categories, maxItems = 10) => {
  */
 const getNavigationByType = (categories, type, maxItems) => {
   // Determine item limit based on navigation type
-  const limit = maxItems || (
-    type === 'FOOTER' ? DEFAULT_FOOTER_NAV_ITEMS : DEFAULT_HEADER_NAV_ITEMS
-  );
-  
+  const limit =
+    maxItems || (type === 'FOOTER' ? DEFAULT_FOOTER_NAV_ITEMS : DEFAULT_HEADER_NAV_ITEMS);
+
   // Filter and limit navigation items
   return filterForNavigation(categories, limit);
 };
@@ -169,7 +169,7 @@ const executeCategoryNavigation = async (context, args) => {
   const result = await context.CommerceGraphQL.Query.Commerce_categoryList({
     root: {},
     args: {
-      filters: {}  // Get all categories, we'll filter later
+      filters: {}, // Get all categories, we'll filter later
     },
     context,
     selectionSet: `{
@@ -208,12 +208,12 @@ const executeCategoryNavigation = async (context, args) => {
           product_count
         }
       }
-    }`
+    }`,
   });
-  
+
   // Transform to navigation structure
   const transformed = result?.map(transformCategory).filter(Boolean) || [];
-  
+
   // Apply navigation type filtering
   return getNavigationByType(transformed, args.type, args.maxItems);
 };
@@ -226,42 +226,41 @@ module.exports = {
   resolvers: {
     Query: {
       Citisignal_categoryNavigation: {
-        resolve: async (root, args, context, info) => {
+        resolve: async (_root, args, context, _info) => {
           try {
             // Get and transform navigation from Commerce
             const navigation = await executeCategoryNavigation(context, args);
-            
+
             // Create header nav items
-            const headerNav = navigation.slice(0, 5).map(cat => ({
+            const headerNav = navigation.slice(0, 5).map((cat) => ({
               href: cat.href,
               label: cat.label,
-              category: cat.urlKey
+              category: cat.urlKey,
             }));
-            
+
             // Create footer nav items
-            const footerNav = navigation.slice(0, 8).map(cat => ({
+            const footerNav = navigation.slice(0, 8).map((cat) => ({
               href: cat.href,
-              label: cat.label
+              label: cat.label,
             }));
-            
+
             // Return structure
             return {
               items: navigation || [],
               headerNav: headerNav || [],
-              footerNav: footerNav || []
+              footerNav: footerNav || [],
             };
-            
           } catch (error) {
             console.error('Category navigation resolver error:', error);
             // Return empty navigation on error (graceful degradation)
-            return { 
+            return {
               items: [],
               headerNav: [],
-              footerNav: []
+              footerNav: [],
             };
           }
-        }
-      }
-    }
-  }
+        },
+      },
+    },
+  },
 };
