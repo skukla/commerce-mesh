@@ -53,9 +53,8 @@ input Citisignal_ProductFilter {
   categoryUrlKey: String  # Category URL key like "phones" or "accessories"
   manufacturer: String
   memory: [String]
-  colors: [String]
-  priceMin: Float
-  priceMax: Float
+  color: [String]
+  price: [String]        # Price ranges like ["300.0-400.0"]
   onSaleOnly: Boolean
 }
 
@@ -63,9 +62,8 @@ input Citisignal_ProductFilter {
 input Citisignal_PageFilter {
   manufacturer: String
   memory: [String]
-  colors: [String]
-  priceMin: Float
-  priceMax: Float
+  color: [String]
+  price: [String]        # Price ranges like ["300.0-400.0"]
   onSaleOnly: Boolean
 }
 
