@@ -110,7 +110,7 @@ const buildCatalogFilters = (filter) => {
   if (filter.facets && typeof filter.facets === 'object') {
     Object.entries(filter.facets).forEach(([urlKey, value]) => {
       // Convert URL key back to Adobe attribute code
-      const attributeCode = getAttributeCode(urlKey);
+      const attributeCode = urlKeyToAttributeCode(urlKey);
 
       if (attributeCode === 'price' && Array.isArray(value) && value.length > 0) {
         const [min, max] = value[0].split('-').map(parseFloat);
@@ -150,7 +150,7 @@ const buildLiveSearchFilters = (filter) => {
   if (filter.facets && typeof filter.facets === 'object') {
     Object.entries(filter.facets).forEach(([urlKey, value]) => {
       // Convert URL key back to Adobe attribute code
-      const attributeCode = getAttributeCode(urlKey);
+      const attributeCode = urlKeyToAttributeCode(urlKey);
 
       if (attributeCode === 'price' && Array.isArray(value) && value.length > 0) {
         // Special handling for price ranges
@@ -276,7 +276,12 @@ const extractPriceValue = (product, priceType, isComplex) => {
  */
 const findAttributeValue = (attributes, name) => {
   if (!attributes || !Array.isArray(attributes)) return null;
-  const attr = attributes.find((a) => a.name === name || a.name === `cs_${name}`);
+  // First try with cs_ prefix (more specific)
+  let attr = attributes.find((a) => a.name === `cs_${name}`);
+  // Then try without prefix
+  if (!attr) {
+    attr = attributes.find((a) => a.name === name);
+  }
   return attr?.value;
 };
 
@@ -362,7 +367,8 @@ const transformProductToCard = (product) => {
   // --- APPLY BUSINESS LOGIC ---
   const isOnSale = regularPrice && finalPrice && finalPrice < regularPrice;
   const discountPercent = calculateDiscountPercent(regularPrice, finalPrice);
-  const cleanManufacturer = cleanAttributeName(manufacturer);
+  // manufacturer value should be used as-is from cs_manufacturer attribute
+  const cleanManufacturer = manufacturer;
   const variantOptions = extractVariantOptions(product.options);
   const imageUrl = product.images?.[0]?.url;
   const secureImageUrl = ensureHttpsUrl(imageUrl);

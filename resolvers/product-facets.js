@@ -83,7 +83,7 @@ const buildLiveSearchFilters = (filter) => {
   if (filter.facets && typeof filter.facets === 'object') {
     Object.entries(filter.facets).forEach(([urlKey, value]) => {
       // Convert URL key back to Adobe attribute code
-      const attributeCode = getAttributeCode(urlKey);
+      const attributeCode = urlKeyToAttributeCode(urlKey);
 
       if (attributeCode === 'price' && Array.isArray(value) && value.length > 0) {
         // Special handling for price ranges
@@ -124,7 +124,7 @@ const buildCatalogFilters = (filter) => {
   if (filter.facets && typeof filter.facets === 'object') {
     Object.entries(filter.facets).forEach(([urlKey, value]) => {
       // Convert URL key back to Adobe attribute code
-      const attributeCode = getAttributeCode(urlKey);
+      const attributeCode = urlKeyToAttributeCode(urlKey);
 
       if (attributeCode === 'price' && Array.isArray(value) && value.length > 0) {
         const [min, max] = value[0].split('-').map(parseFloat);
@@ -202,7 +202,7 @@ const transformFacets = (facets) => {
       const originalAttribute = facet.attribute; // e.g., "cs_manufacturer", "manufacturer", "custom_field"
 
       // Get SEO-friendly URL key using injected mapping function
-      const urlKey = getUrlKey(facet.attribute);
+      const urlKey = attributeCodeToUrlKey(facet.attribute);
 
       // RESPECT ADMIN-CONFIGURED LABELS
       // Adobe Commerce admins can set custom labels for facets

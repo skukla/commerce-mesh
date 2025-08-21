@@ -60,7 +60,7 @@
 // SHARED UTILITIES - Reused from existing resolvers for consistency
 // ============================================================================
 
-// Note: cleanAttributeName functionality now replaced by getUrlKey() injected at build time
+// Note: cleanAttributeName functionality now replaced by attributeCodeToUrlKey() injected at build time
 
 /**
  * Normalize filter values for case-insensitive matching
@@ -141,7 +141,7 @@ const extractVariantOptions = (options) => {
 
   options.forEach((option) => {
     if (option.id?.startsWith('cs_')) {
-      const cleanOptionName = getUrlKey(option.id);
+      const cleanOptionName = attributeCodeToUrlKey(option.id);
 
       if (cleanOptionName === 'color' && option.values) {
         variantOptions.colors = option.values.map((v) => ({
@@ -179,7 +179,7 @@ const buildCatalogFilters = (filter) => {
   // Dynamic facets support - convert URL keys back to Adobe attribute codes
   if (filter.facets && typeof filter.facets === 'object') {
     Object.entries(filter.facets).forEach(([urlKey, value]) => {
-      const attributeCode = getAttributeCode(urlKey);
+      const attributeCode = urlKeyToAttributeCode(urlKey);
       // Skip empty values
       if (!value || (Array.isArray(value) && value.length === 0)) return;
 
@@ -231,7 +231,7 @@ const buildLiveSearchFilters = (filter) => {
   // Dynamic facets support - convert URL keys back to Adobe attribute codes
   if (filter.facets && typeof filter.facets === 'object') {
     Object.entries(filter.facets).forEach(([urlKey, value]) => {
-      const attributeCode = getAttributeCode(urlKey);
+      const attributeCode = urlKeyToAttributeCode(urlKey);
       // Skip empty values
       if (!value || (Array.isArray(value) && value.length === 0)) return;
 
@@ -282,7 +282,8 @@ const transformProductToCard = (product) => {
 
   const isOnSale = regularPrice && finalPrice && finalPrice < regularPrice;
   const discountPercent = calculateDiscountPercent(regularPrice, finalPrice);
-  const cleanManufacturer = manufacturer ? getUrlKey(manufacturer) : manufacturer;
+  // Use manufacturer value as-is (don't apply URL transformation to the value)
+  const cleanManufacturer = manufacturer;
   const variantOptions = extractVariantOptions(product.options);
   const imageUrl = product.images?.[0]?.url;
   const secureImageUrl = ensureHttpsUrl(imageUrl);
@@ -316,7 +317,7 @@ const transformFacets = (facets) => {
   return facets
     .map((facet) => {
       const originalAttribute = facet.attribute;
-      const urlKey = getUrlKey(facet.attribute);
+      const urlKey = attributeCodeToUrlKey(facet.attribute);
       const title = facet.title || urlKey;
 
       // Determine facet type - price should be radio (single select)

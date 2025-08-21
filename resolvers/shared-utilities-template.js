@@ -9,6 +9,11 @@
  * resolvers that use them. The build script handles injecting facet mappings,
  * but these utilities must be manually copied.
  *
+ * BUILD-TIME INJECTED FUNCTIONS (don't copy these, they're auto-injected):
+ * - attributeCodeToUrlKey(attributeCode) - Converts cs_manufacturer → manufacturer
+ * - urlKeyToAttributeCode(urlKey) - Converts manufacturer → cs_manufacturer
+ * - FACET_MAPPINGS - Configuration object with mappings
+ *
  * Usage:
  * 1. Copy the functions you need from this template
  * 2. Paste them into your resolver's utility section

@@ -103,7 +103,7 @@ const buildCatalogFilters = (categoryUrlKey, pageFilter) => {
     // Dynamic facets support - convert URL keys back to Adobe attribute codes
     if (pageFilter.facets && typeof pageFilter.facets === 'object') {
       Object.entries(pageFilter.facets).forEach(([urlKey, value]) => {
-        const attributeCode = getAttributeCode(urlKey);
+        const attributeCode = urlKeyToAttributeCode(urlKey);
         // Skip empty values
         if (!value || (Array.isArray(value) && value.length === 0)) return;
 
@@ -158,7 +158,7 @@ const buildLiveSearchFilters = (categoryUrlKey, pageFilter) => {
     // Dynamic facets support - convert URL keys back to Adobe attribute codes
     if (pageFilter.facets && typeof pageFilter.facets === 'object') {
       Object.entries(pageFilter.facets).forEach(([urlKey, value]) => {
-        const attributeCode = getAttributeCode(urlKey);
+        const attributeCode = urlKeyToAttributeCode(urlKey);
         // Skip empty values
         if (!value || (Array.isArray(value) && value.length === 0)) return;
 
@@ -201,7 +201,7 @@ const buildLiveSearchFilters = (categoryUrlKey, pageFilter) => {
 // BUSINESS LOGIC HELPERS - Reusable transformation functions
 // ============================================================================
 
-// Note: cleanAttributeName functionality now replaced by getUrlKey() injected at build time
+// Note: cleanAttributeName functionality now replaced by attributeCodeToUrlKey() injected at build time
 
 /**
  * Normalize filter values for case-insensitive matching
@@ -286,7 +286,7 @@ const extractVariantOptions = (options) => {
   options.forEach((option) => {
     if (option.id?.startsWith('cs_')) {
       // Clean the option name using helper
-      const cleanOptionName = getUrlKey(option.id);
+      const cleanOptionName = attributeCodeToUrlKey(option.id);
 
       // Special handling for color options (include hex values)
       if (cleanOptionName === 'color' && option.values) {
@@ -322,7 +322,8 @@ const transformProductToCard = (product) => {
   // --- APPLY BUSINESS LOGIC ---
   const isOnSale = regularPrice && finalPrice && finalPrice < regularPrice;
   const discountPercent = calculateDiscountPercent(regularPrice, finalPrice);
-  const cleanManufacturer = manufacturer ? getUrlKey(manufacturer) : manufacturer;
+  // Use manufacturer value as-is (don't apply URL transformation to the value)
+  const cleanManufacturer = manufacturer;
   const variantOptions = extractVariantOptions(product.options);
   const imageUrl = product.images?.[0]?.url;
   const secureImageUrl = ensureHttpsUrl(imageUrl);
@@ -366,7 +367,7 @@ const transformFacets = (facets) => {
     .map((facet) => {
       const originalAttribute = facet.attribute;
       // Get SEO-friendly URL key using injected mapping function
-      const urlKey = getUrlKey(facet.attribute);
+      const urlKey = attributeCodeToUrlKey(facet.attribute);
 
       // RESPECT ADMIN-CONFIGURED LABELS
       // Use the title from Adobe if provided, otherwise use URL key
