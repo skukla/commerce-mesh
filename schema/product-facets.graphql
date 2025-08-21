@@ -7,9 +7,9 @@ type Citisignal_FacetOption {
 }
 
 type Citisignal_Facet {
-  title: String!
-  key: String!          # Clean key for display (e.g., "manufacturer")
-  attributeCode: String! # Original Adobe attribute code for filtering (e.g., "cs_manufacturer")
+  title: String!         # Display name from Adobe Commerce
+  key: String!           # SEO-friendly URL key (e.g., "manufacturer")
+  attributeCode: String! # Original Adobe attribute code (e.g., "cs_manufacturer")
   type: String!
   options: [Citisignal_FacetOption]!
 }
