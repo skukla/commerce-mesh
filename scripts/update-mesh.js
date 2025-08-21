@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 
+/* global setTimeout */
+
 /**
  * Update mesh configuration with status polling
  * Follows Adobe App Builder deployment patterns
@@ -14,19 +16,19 @@ const crypto = require('crypto');
 let ora, chalk;
 try {
   ora = require('ora');
-} catch (e) {
+} catch {
   // Fallback if ora is not installed
   ora = (options) => ({
     start: () => {
       console.log(options.text || options);
       return { stop: () => {}, fail: () => {} };
-    }
+    },
   });
 }
 
 try {
   chalk = require('chalk');
-} catch (e) {
+} catch {
   // Fallback if chalk is not installed
   chalk = {
     green: (str) => str,
@@ -36,7 +38,7 @@ try {
     cyan: (str) => str,
     gray: (str) => str,
     magenta: (str) => str,
-    bold: { green: (str) => str, cyan: (str) => str }
+    bold: { green: (str) => str, cyan: (str) => str },
   };
 }
 
@@ -51,7 +53,7 @@ const format = {
   deploymentAction: (msg) => chalk.blue(`🔧 ${msg}`),
   celebration: (msg) => chalk.magenta(`🎉 ${msg}`),
   environment: (env) => env.charAt(0).toUpperCase() + env.slice(1),
-  sleep: (ms) => new Promise(resolve => setTimeout(resolve, ms))
+  sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
 };
 
 /**
@@ -59,7 +61,7 @@ const format = {
  */
 function parseArgs(args) {
   const parsed = { params: {} };
-  
+
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
     if (arg.startsWith('--')) {
@@ -67,7 +69,7 @@ function parseArgs(args) {
       parsed[key] = value || true;
     }
   }
-  
+
   return parsed;
 }
 
@@ -79,32 +81,44 @@ function isProdEnvironment(args) {
 }
 
 /**
- * Get hash of mesh files to detect changes
+ * Get hash of source files (schemas and resolvers) to detect changes
+ * Does NOT include mesh.json since that gets rebuilt
  */
-function getMeshHash() {
+function getSourceFilesHash() {
   try {
-    const meshJsonPath = path.join(__dirname, '..', 'mesh.json');
     const resolversDir = path.join(__dirname, '..', 'resolvers');
-    
+    const schemasDir = path.join(__dirname, '..', 'schema');
+
     let combinedContent = '';
-    if (fs.existsSync(meshJsonPath)) {
-      combinedContent += fs.readFileSync(meshJsonPath, 'utf8');
-    }
-    
+
     // Include all resolver files
     if (fs.existsSync(resolversDir)) {
-      const resolverFiles = fs.readdirSync(resolversDir)
-        .filter(f => f.endsWith('.js'))
+      const resolverFiles = fs
+        .readdirSync(resolversDir)
+        .filter((f) => f.endsWith('.js'))
         .sort(); // Sort for consistent hash
-      
-      resolverFiles.forEach(file => {
+
+      resolverFiles.forEach((file) => {
         const filePath = path.join(resolversDir, file);
         combinedContent += fs.readFileSync(filePath, 'utf8');
       });
     }
-    
+
+    // Include all schema files
+    if (fs.existsSync(schemasDir)) {
+      const schemaFiles = fs
+        .readdirSync(schemasDir)
+        .filter((f) => f.endsWith('.graphql'))
+        .sort();
+
+      schemaFiles.forEach((file) => {
+        const filePath = path.join(schemasDir, file);
+        combinedContent += fs.readFileSync(filePath, 'utf8');
+      });
+    }
+
     return crypto.createHash('md5').update(combinedContent).digest('hex');
-  } catch (error) {
+  } catch {
     return null;
   }
 }
@@ -117,7 +131,7 @@ function getStoredDeployHash(isProd) {
     const hashFile = isProd ? '.mesh-deploy-hash-prod' : '.mesh-deploy-hash';
     const hashPath = path.join(__dirname, '..', hashFile);
     return fs.readFileSync(hashPath, 'utf8').trim();
-  } catch (error) {
+  } catch {
     return null;
   }
 }
@@ -134,26 +148,31 @@ function storeDeployHash(hash, isProd) {
 /**
  * Run deploy command with proper output handling
  */
-async function runDeployCommand(command, description, suppressCompletion = false, captureOutput = false) {
+async function runDeployCommand(
+  command,
+  description,
+  suppressCompletion = false,
+  captureOutput = false
+) {
   console.log(format.deploymentAction(description));
   await format.sleep(500);
 
   try {
     if (captureOutput) {
       // Capture output to show errors properly
-      const output = execSync(command, { 
+      const output = execSync(command, {
         encoding: 'utf8',
         cwd: process.cwd(),
-        stdio: 'pipe'
+        stdio: 'pipe',
       });
-      
+
       // Check for errors in output
       if (output.toLowerCase().includes('error:')) {
         console.error(format.error(`${description} failed`));
         console.error(output);
         throw new Error('Mesh update failed with errors');
       }
-      
+
       // Show output if it contains important information
       if (output.trim()) {
         console.log(output);
@@ -161,7 +180,7 @@ async function runDeployCommand(command, description, suppressCompletion = false
     } else {
       execSync(command, { stdio: 'inherit', cwd: process.cwd() });
     }
-    
+
     if (!suppressCompletion) {
       console.log(format.success(`${description} completed`));
     }
@@ -170,13 +189,13 @@ async function runDeployCommand(command, description, suppressCompletion = false
     // Extract the actual error message from command output
     const errorMessage = error.stdout || error.stderr || error.message;
     console.error(format.error(`${description} failed`));
-    
+
     // Display the full error output for debugging
     if (errorMessage) {
       console.error(format.muted('Error details:'));
       console.error(errorMessage);
     }
-    
+
     throw new Error(`${description} failed`);
   }
 }
@@ -204,7 +223,7 @@ function checkMeshStatus(statusOutput) {
   // Continue polling - various provisioning messages
   if (
     statusOutput.includes('Currently provisioning') ||
-    statusOutput.includes('provisioning') || 
+    statusOutput.includes('provisioning') ||
     statusOutput.includes('Provisioning') ||
     statusOutput.includes('Wait a few minutes')
   ) {
@@ -224,12 +243,12 @@ async function pollMeshStatus(isProd) {
 
   const spinner = ora({
     text: format.muted('Provisioning mesh...'),
-    spinner: 'dots'
+    spinner: 'dots',
   }).start();
 
   // Initial delay to allow provisioning to start
   await format.sleep(5000); // 5 seconds
-  
+
   let attempts = 0;
   while (attempts < maxAttempts) {
     attempts++;
@@ -242,15 +261,15 @@ async function pollMeshStatus(isProd) {
       }
 
       // Check status
-      const statusCommand = isProd 
+      const statusCommand = isProd
         ? 'echo | aio api-mesh:status --prod 2>&1'
         : 'echo | aio api-mesh:status 2>&1';
-      
+
       const statusOutput = execSync(statusCommand, {
         encoding: 'utf8',
         stdio: 'pipe',
         timeout: 15000, // 15 seconds
-        shell: true
+        shell: true,
       });
 
       const status = checkMeshStatus(statusOutput);
@@ -266,11 +285,11 @@ async function pollMeshStatus(isProd) {
         console.log(format.error('Mesh deployment failed - check status manually'));
         return false;
       }
-    } catch (error) {
+    } catch {
       // Only fail if near timeout
       if (attempts >= maxAttempts - 2) {
         spinner.stop();
-        console.log(format.warning(`Mesh status polling timed out`));
+        console.log(format.warning('Mesh status polling timed out'));
         console.log(format.warning('Mesh update may still be in progress - check manually'));
         return true; // Assume success to not block deployment
       }
@@ -290,7 +309,7 @@ async function purgeMeshCache(isProd, environment) {
   const cacheCommand = `aio api-mesh:cache:purge -a -c${isProd ? ' --prod' : ''}`;
   try {
     await runDeployCommand(cacheCommand, `Purging mesh cache in ${environment}`);
-  } catch (error) {
+  } catch {
     // Don't fail deployment for cache purge issues
     console.log(format.warning('Cache purge failed, proceeding with mesh update anyway'));
   }
@@ -318,10 +337,14 @@ Options:
   --help          Show this help message
   --prod          Deploy to production environment
   --force         Force update even if no changes detected
+  --skip-check    Skip change detection and always deploy
   --skip-cache    Skip cache purge step
 
 This script updates the Adobe API Mesh configuration in the
 specified environment and waits for provisioning to complete.
+
+Change detection: Compares source files (schemas & resolvers) to detect changes.
+Use --skip-check to bypass this and always deploy.
     `);
     return;
   }
@@ -331,23 +354,22 @@ specified environment and waits for provisioning to complete.
   await format.sleep(500);
 
   try {
-    // Check if mesh.json exists
-    const meshJsonPath = path.join(__dirname, '..', 'mesh.json');
-    if (!fs.existsSync(meshJsonPath)) {
-      console.log(format.warning('mesh.json not found - running build first...'));
-      execSync('npm run build', { stdio: 'inherit' });
-      console.log();
-    }
-
-    // Check if update is needed
-    const currentHash = getMeshHash();
+    // Check if source files changed BEFORE rebuilding
+    const currentHash = getSourceFilesHash();
     const storedHash = getStoredDeployHash(isProd);
-    
-    if (!args.force && currentHash === storedHash) {
-      console.log(format.muted(`No changes detected since last ${environment} deployment`));
+
+    if (!args.force && !args['skip-check'] && currentHash === storedHash) {
+      console.log(
+        format.muted(`No changes detected in source files since last ${environment} deployment`)
+      );
       console.log(format.success('Deployment skipped (use --force to redeploy)'));
       return;
     }
+
+    // Always rebuild mesh.json to ensure all resolver changes are included
+    console.log(format.muted('Rebuilding mesh configuration...'));
+    execSync('npm run build -- --force', { stdio: 'inherit' });
+    console.log();
 
     // Purge cache if not skipped
     if (!args['skip-cache']) {
@@ -357,16 +379,16 @@ specified environment and waits for provisioning to complete.
 
     // Update mesh configuration
     await updateMeshConfiguration(isProd, environment);
-    
+
     // Poll for status
     const success = await pollMeshStatus(isProd);
-    
+
     if (success) {
       // Store the hash for next time
       if (currentHash) {
         storeDeployHash(currentHash, isProd);
       }
-      
+
       console.log();
       console.log(format.celebration(`Mesh deployed successfully to ${environment}!`));
     } else {
@@ -385,7 +407,7 @@ specified environment and waits for provisioning to complete.
 
 // Run if called directly
 if (require.main === module) {
-  main().catch(error => {
+  main().catch((error) => {
     console.error(format.error(`Error: ${error.message}`));
     process.exit(1);
   });
