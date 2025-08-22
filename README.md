@@ -1,81 +1,202 @@
-# 606AzureDog
+# Commerce Mesh
 
-Welcome to my Adobe I/O Application!
+Adobe API Mesh configuration for CitiSignal e-commerce integration. This project orchestrates multiple Adobe Commerce services (Catalog Service, Live Search, Commerce GraphQL) into a unified GraphQL API with enhanced product resolvers and dynamic facet support.
+
+## Overview
+
+This API Mesh provides:
+
+- **Unified GraphQL endpoint** combining multiple Adobe Commerce services
+- **Dynamic facet system** with SEO-friendly URL mapping
+- **Enhanced product resolvers** with normalized data structures
+- **Build-time injection pattern** to overcome API Mesh limitations
+- **SSR-optimized queries** for complete page data in single requests
+
+## Prerequisites
+
+- Adobe I/O CLI (`aio`) installed and configured
+- Access to Adobe Commerce services (Catalog Service, Live Search, Commerce Core)
+- Node.js 18+ and npm
 
 ## Setup
 
-- Populate the `.env` file in the project root and fill it as shown [below](#env)
+1. **Install dependencies:**
 
-## Local Dev
+   ```bash
+   npm install
+   ```
 
-- `aio app run` to start your local Dev server
-- App will run on `localhost:9080` by default
+2. **Configure environment:**
 
-By default the UI will be served locally but actions will be deployed and served from Adobe I/O Runtime. To start a
-local serverless stack and also run your actions locally use the `aio app run --local` option.
+   ```bash
+   # Copy the example environment file
+   cp .env.example .env
 
-## Test & Coverage
+   # Edit .env with your credentials:
+   # - API_KEY
+   # - CATALOG_SERVICE_URL
+   # - LIVE_SEARCH_URL
+   # - COMMERCE_URL
+   # - ENVIRONMENT_ID
+   # - WEBSITE_CODE
+   # - STORE_CODE
+   # - STORE_VIEW_CODE
+   # - CUSTOMER_GROUP
+   ```
 
-- Run `aio app test` to run unit tests for ui and actions
-- Run `aio app test --e2e` to run e2e tests
+3. **Configure Adobe I/O CLI:**
+   ```bash
+   aio app use
+   # Select your organization and project
+   ```
 
-## Deploy & Cleanup
+## Development Workflow
 
-- `aio app deploy` to build and deploy all actions on Runtime and static files to CDN
-- `aio app undeploy` to undeploy the app
-
-## Config
-
-### `.env`
-
-You can generate this file using the command `aio app use`. 
+### Build and Deploy
 
 ```bash
-# This file must **not** be committed to source control
+# Build mesh configuration (generates mesh.json)
+npm run build
 
-## please provide your Adobe I/O Runtime credentials
-# AIO_RUNTIME_AUTH=
-# AIO_RUNTIME_NAMESPACE=
+# Deploy to staging environment
+npm run update
+
+# Deploy to production environment
+npm run update:prod
+
+# Check mesh status
+npm run status
+
+# View mesh details
+npm run describe
 ```
 
-### `app.config.yaml`
+### Build Process
 
-- Main configuration file that defines an application's implementation. 
-- More information on this file, application configuration, and extension configuration 
-  can be found [here](https://developer.adobe.com/app-builder/docs/guides/appbuilder-configuration/#appconfigyaml)
+The build process (`npm run build`) performs several critical steps:
 
-#### Action Dependencies
+1. **Processes resolvers** with build-time injection pattern
+2. **Injects facet mappings** from `config/facet-mappings.json`
+3. **Adds utility functions** to each resolver
+4. **Generates mesh.json** with processed resolver references
+5. **Validates configuration** before deployment
 
-- You have two options to resolve your actions' dependencies:
+## Architecture
 
-  1. **Packaged action file**: Add your action's dependencies to the root
-   `package.json` and install them using `npm install`. Then set the `function`
-   field in `app.config.yaml` to point to the **entry file** of your action
-   folder. We will use `webpack` to package your code and dependencies into a
-   single minified js file. The action will then be deployed as a single file.
-   Use this method if you want to reduce the size of your actions.
+### Directory Structure
 
-  2. **Zipped action folder**: In the folder containing the action code add a
-     `package.json` with the action's dependencies. Then set the `function`
-     field in `app.config.yaml` to point to the **folder** of that action. We will
-     install the required dependencies within that directory and zip the folder
-     before deploying it as a zipped action. Use this method if you want to keep
-     your action's dependencies separated.
-
-## Debugging in VS Code
-
-While running your local server (`aio app run`), both UI and actions can be debugged, to do so open the vscode debugger
-and select the debugging configuration called `WebAndActions`.
-Alternatively, there are also debug configs for only UI and each separate action.
-
-## Typescript support for UI
-
-To use typescript use `.tsx` extension for react components and add a `tsconfig.json` 
-and make sure you have the below config added
 ```
- {
-  "compilerOptions": {
-      "jsx": "react"
-    }
-  } 
+commerce-mesh/
+├── config/
+│   └── facet-mappings.json    # SEO-friendly URL mappings
+├── resolvers/                  # Source resolver files
+│   ├── category-page.js       # Unified category page data
+│   ├── product-cards.js       # Product listing with filters
+│   ├── product-facets.js      # Dynamic facets/filters
+│   └── ...
+├── resolvers-processed/        # Generated resolvers with injections
+├── scripts/
+│   ├── build-mesh.js          # Build script with injection logic
+│   └── update-mesh.js         # Deployment script
+├── schemas/
+│   └── schema.graphql         # GraphQL schema extensions
+└── mesh.json                  # Generated mesh configuration
 ```
+
+### Services Integration
+
+The mesh integrates three main Adobe Commerce services:
+
+1. **Catalog Service** - Product data, attributes, pricing
+2. **Live Search** - AI-powered search, dynamic facets, relevance
+3. **Commerce Core GraphQL** - Categories, navigation, cart, checkout
+
+### Custom Resolvers
+
+All custom resolvers follow the `Citisignal_*` naming convention:
+
+- `Citisignal_categoryPageData` - Complete category page data (SSR-optimized)
+- `Citisignal_productCards` - Product listings with pagination
+- `Citisignal_productFacets` - Dynamic filter options
+- `Citisignal_productSearchFilter` - Search with filters
+- `Citisignal_categoryNavigation` - Navigation menus
+- `Citisignal_categoryBreadcrumbs` - Breadcrumb trails
+
+## Dynamic Facet System
+
+The mesh implements a sophisticated facet system that:
+
+1. **Accepts any Adobe Commerce attributes** dynamically via JSON scalar type
+2. **Maps technical codes to SEO-friendly URLs** (e.g., `cs_manufacturer` → `manufacturer`)
+3. **Provides bidirectional mapping** for clean URLs and API compatibility
+4. **Supports custom and standard attributes** without schema changes
+
+Configuration in `config/facet-mappings.json`:
+
+```json
+{
+  "mappings": {
+    "cs_manufacturer": "manufacturer",
+    "cs_memory": "storage"
+  },
+  "defaults": {
+    "removePrefix": ["cs_", "attr_"],
+    "replaceUnderscore": true,
+    "toLowerCase": true
+  }
+}
+```
+
+## Testing
+
+### GraphQL Playground
+
+After deployment, test queries using the GraphQL playground:
+
+```bash
+# Get the mesh URL
+npm run describe
+
+# Open the URL in browser and test queries
+```
+
+### Example Queries
+
+```graphql
+# Unified category page query
+query GetCategoryPage {
+  Citisignal_categoryPageData(
+    categoryUrlKey: "phones"
+    filter: { manufacturer: "Apple", memory: ["128GB", "256GB"] }
+    sort: { attribute: PRICE, direction: ASC }
+  ) {
+    navigation { ... }
+    products { ... }
+    facets { ... }
+    breadcrumbs { ... }
+  }
+}
+```
+
+## Troubleshooting
+
+- **Build failures**: Check `console.log` output from build script
+- **Deployment errors**: Run `npm run status` to check mesh health
+- **Query errors**: Enable debug mode in resolvers (temporarily add logging)
+- **Missing facets**: Verify facet mappings in config and rebuild
+
+## Documentation
+
+- [Build-Time Injection Pattern](docs/build-time-injection-pattern.md)
+- [Implementing Facets](docs/implementing-facets.md)
+- [Resolver Patterns](docs/resolver-patterns.md)
+- [API Mesh Limitations](docs/explorations/API%20Mesh%20Limitations.md)
+- [Debugging Guide](docs/debugging-api-mesh.md)
+
+## Related Projects
+
+- [CitiSignal Next.js Frontend](../citisignal-nextjs) - The frontend application consuming this mesh
+
+## License
+
+Private - All rights reserved

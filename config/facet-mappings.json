@@ -1,0 +1,18 @@
+{
+  "version": "1.0",
+  "description": "URL key mappings for SEO-friendly URLs. Display names come from Adobe Commerce.",
+  "mappings": {
+    "cs_manufacturer": "manufacturer",
+    "cs_memory": "storage",
+    "cs_color": "color",
+    "price": "price",
+    "categories": "category",
+    "cs_connectivity": "connectivity",
+    "cs_screen_size": "screen-size"
+  },
+  "defaults": {
+    "removePrefix": ["cs_", "attr_", "custom_"],
+    "replaceUnderscore": true,
+    "toLowerCase": true
+  }
+}

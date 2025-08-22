@@ -2,6 +2,120 @@
 
 ## Common Issues
 
+### Facet Counts Showing 0
+**Error**: Facet options display correctly but all show `count: 0`
+
+**Cause**: Missing GraphQL inline fragments for bucket union types
+
+**Solution**:
+```graphql
+# ❌ INCORRECT - Will return count: 0
+facets {
+  buckets {
+    title
+    count  # This won't work!
+  }
+}
+
+# ✅ CORRECT - Use inline fragments
+facets {
+  buckets {
+    ... on Search_ScalarBucket { title count }
+    ... on Search_RangeBucket { title count }
+  }
+}
+
+# For Catalog Service use Catalog_ prefix:
+facets {
+  buckets {
+    ... on Catalog_ScalarBucket { title count }
+    ... on Catalog_RangeBucket { title count }
+  }
+}
+```
+
+**Files to Check**:
+- `resolvers/product-facets.js`
+- `resolvers/category-page.js`
+- `resolvers/product-cards.js`
+
+---
+
+### Multiple Filters Not Working
+**Error**: Adding second filter doesn't narrow results (e.g., Apple + 256GB shows same as just Apple)
+
+**Cause**: Filter attributes not implemented in resolver filter builders
+
+**Solution**:
+Add missing filter handling in `buildLiveSearchFilters` and `buildCatalogFilters`:
+```javascript
+// Add memory filter
+if (filter.memory) {
+  filters.push({
+    attribute: 'cs_memory',
+    in: Array.isArray(filter.memory) ? filter.memory : [filter.memory]
+  });
+}
+
+// Add color filter  
+if (filter.colors && filter.colors.length > 0) {
+  filters.push({
+    attribute: 'cs_color',
+    in: filter.colors
+  });
+}
+```
+
+---
+
+### Case Sensitivity in Filters
+**Error**: Filtering by "apple" returns no results, only "Apple" works
+
+**Cause**: Direct string comparison without normalization
+
+**Solution**:
+Implement case normalization:
+```javascript
+const normalizeFilterValue = (value) => {
+  if (!value || typeof value !== 'string') return value;
+  return value.charAt(0).toUpperCase() + value.slice(1).toLowerCase();
+};
+
+// Use in filter:
+if (filter.manufacturer) {
+  filters.push({
+    attribute: 'cs_manufacturer',
+    in: [normalizeFilterValue(filter.manufacturer)]
+  });
+}
+```
+
+---
+
+### Breadcrumbs Returning Null
+**Error**: `Cannot return null for non-nullable field urlPath`
+
+**Cause**: Incorrect field mapping in breadcrumb builder
+
+**Solution**:
+```javascript
+// Change from:
+return {
+  name: category.name,
+  href: buildCategoryUrl(category),  // Wrong field
+  isActive: level === currentLevel   // Wrong field
+};
+
+// To:
+return {
+  name: category.name,
+  urlPath: buildCategoryUrl(category),  // Correct field per schema
+  level: level                          // Optional field
+};
+```
+
+---
+
 ### "Unknown type" Errors
 **Error**: `Unknown type "Citisignal_FilterInput"`
 
@@ -91,7 +205,30 @@ filterSchema: {
 
 ## Debugging Workflow
 
-### 1. Enable Debug Output
+### 1. Test with cURL First
+Always test resolvers directly to isolate frontend vs backend issues:
+```bash
+# Set environment variables
+export MESH_ENDPOINT="https://edge-sandbox-graph.adobe.io/api/YOUR-MESH-ID/graphql"
+export API_KEY="your-api-key"
+export ENV_ID="your-environment-id"
+
+# Test facet counts
+curl -X POST $MESH_ENDPOINT \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: $API_KEY" \
+  -H "Magento-Environment-Id: $ENV_ID" \
+  -d '{"query": "query { Citisignal_productFacets(filter: { categoryUrlKey: \"phones\" }) { facets { key title options { name count } } } }"}'
+
+# Test multiple filters
+curl -X POST $MESH_ENDPOINT \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: $API_KEY" \
+  -H "Magento-Environment-Id: $ENV_ID" \
+  -d '{"query": "query { Citisignal_productCards(filter: { categoryUrlKey: \"phones\", manufacturer: \"Apple\", memory: \"256GB\" }) { totalCount } }"}'
+```
+
+### 2. Enable Debug Output
 ```graphql
 query {
   Citisignal_productCards {

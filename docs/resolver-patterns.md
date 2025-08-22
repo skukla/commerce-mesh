@@ -7,12 +7,14 @@ Adobe API Mesh resolvers must be self-contained due to platform limitations. Thi
 ## Limitations and Constraints
 
 ### Cannot Use External Files
+
 - No `import` or `require` statements
 - No shared utility libraries
 - Each resolver must be completely self-contained
 - Code duplication is unavoidable but manageable
 
 ### Solution: Shared Utilities Template
+
 We maintain `resolvers/shared-utilities-template.js` as a reference implementation of common functions. When creating or updating resolvers, developers copy needed functions from this template.
 
 ## Standard Resolver Structure
@@ -20,13 +22,15 @@ We maintain `resolvers/shared-utilities-template.js` as a reference implementati
 Every resolver follows this 9-section pattern:
 
 ### Section 1: Constants
+
 ```javascript
-const DEFAULT_PAGE_SIZE = 24;  // Consistent across all resolvers
+const DEFAULT_PAGE_SIZE = 24; // Consistent across all resolvers
 const DEFAULT_MAX_PRICE = 999999;
 const DEFAULT_MIN_PRICE = 0;
 ```
 
 ### Section 2: Filter Conversion
+
 ```javascript
 // Convert frontend filter array to intermediate object
 const convertFiltersToProductFilter = (filters) => { ... }
@@ -34,17 +38,19 @@ const convertFiltersToProductFilter = (filters) => { ... }
 // Convert to Catalog Service format
 const buildCatalogFilters = (productFilter) => { ... }
 
-// Convert to Live Search format  
+// Convert to Live Search format
 const buildLiveSearchFilters = (productFilter) => { ... }
 ```
 
 ### Section 3: Attribute Extraction
+
 ```javascript
-const cleanAttributeName = (name) => { ... }
+const attributeCodeToUrlKey = (attributeCode) => { ... } // Injected at build time
 const extractAttributeValue = (attributes, attributeName, defaultValue) => { ... }
 ```
 
 ### Section 4: Price Utilities
+
 ```javascript
 const extractRegularPrice = (product) => { ... }
 const extractFinalPrice = (product) => { ... }
@@ -53,29 +59,43 @@ const formatPrice = (amount) => { ... }
 ```
 
 ### Section 5: URL Utilities
+
 ```javascript
 const ensureHttpsUrl = (url) => { ... }
 ```
 
 ### Section 6: Product Transformation
+
 ```javascript
-const transformProduct = (product) => { 
+const transformProduct = (product) => {
   // Consistent product shape across all resolvers
   return {
-    id, sku, urlKey, name, manufacturer,
-    price, originalPrice, discountPercent,
-    inStock, image, memory, colors
+    id,
+    sku,
+    urlKey,
+    name,
+    manufacturer,
+    price,
+    originalPrice,
+    discountPercent,
+    inStock,
+    image,
+    memory,
+    colors,
   };
-}
+};
 ```
 
 ### Section 7: Domain-Specific Functions
+
 Each resolver may have unique functions for its domain:
+
 - Navigation transformation (page resolvers)
 - Facet transformation (facet resolver)
 - Sort mapping (product resolvers)
 
 ### Section 8: Service Queries
+
 ```javascript
 // Abstract service calls into functions
 const fetchProducts = async (context, args) => { ... }
@@ -84,6 +104,7 @@ const fetchNavigation = async (context, args) => { ... }
 ```
 
 ### Section 9: Main Resolver
+
 ```javascript
 module.exports = {
   resolvers: {
@@ -95,21 +116,23 @@ module.exports = {
         } catch (error) {
           // Return safe defaults for SSR resilience
         }
-      }
-    }
-  }
+      },
+    },
+  },
 };
 ```
 
 ## Resolver Types
 
 ### Page-Level Resolvers
+
 - `category-page.js` - All data for category pages
 - `product-page.js` - All data for product listing pages
 
 These resolvers fetch complete page data in a single query for SSR optimization.
 
 ### Focused Resolvers
+
 - `product-cards.js` - Product listings only
 - `product-facets.js` - Filter facets only
 - `search-suggestions.js` - Search autocomplete
@@ -134,7 +157,9 @@ These resolvers have single responsibilities for client-side updates.
 ## Field Consistency Rules
 
 ### Product Shape
+
 All resolvers returning products must use this exact shape:
+
 ```javascript
 {
   id: string,
@@ -156,6 +181,7 @@ All resolvers returning products must use this exact shape:
 ```
 
 ### Facet Shape
+
 ```javascript
 {
   title: string,
@@ -170,6 +196,7 @@ All resolvers returning products must use this exact shape:
 ```
 
 ### Navigation Shape
+
 ```javascript
 {
   headerNav: Array<{
@@ -188,6 +215,7 @@ All resolvers returning products must use this exact shape:
 ## Error Handling Pattern
 
 All resolvers must return safe defaults on error:
+
 ```javascript
 catch (error) {
   console.error(`Error in ${resolverName}:`, error.message);
@@ -202,6 +230,7 @@ catch (error) {
 ## Testing Checklist
 
 When updating resolvers:
+
 - [ ] Constants match template (DEFAULT_PAGE_SIZE = 24)
 - [ ] All utility functions match template exactly
 - [ ] Field shapes match documentation

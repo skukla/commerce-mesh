@@ -10,7 +10,7 @@ dist
 
 # Config
 config.json
-.env*
+.env
 .aio
 
 # Adobe I/O console config
@@ -47,6 +47,9 @@ workspace.json
 .mesh-build-hash
 .mesh-deploy-hash
 .mesh-deploy-hash-prod
+
+# Processed resolvers (generated at build time)
+resolvers-processed/
 
 # fnm
 .node-version

@@ -8,7 +8,13 @@
     "node-fetch": "^3.3.2"
   },
   "devDependencies": {
-    "@adobe/aio-cli": "^10.0.0"
+    "@adobe/aio-cli": "^10.0.0",
+    "@eslint/js": "^9.33.0",
+    "eslint": "^9.33.0",
+    "eslint-config-prettier": "^10.1.8",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.1.5",
+    "prettier": "^3.6.2"
   },
   "scripts": {
     "build": "node scripts/build-mesh.js",
@@ -16,9 +22,23 @@
     "update": "npm run build && node scripts/update-mesh.js",
     "update:prod": "npm run build && node scripts/update-mesh.js --prod",
     "status": "aio api-mesh:status",
-    "describe": "aio api-mesh:describe"
+    "describe": "aio api-mesh:describe",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "prepare": "husky"
   },
   "engines": {
     "node": "^14 || ^16 || ^18"
+  },
+  "lint-staged": {
+    "*.js": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{json,md}": [
+      "prettier --write"
+    ]
   }
 }

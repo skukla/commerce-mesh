@@ -5,123 +5,116 @@ module.exports = {
   meshConfig: {
     sources: [
       {
-        name: "CommerceGraphQL",
+        name: 'CommerceGraphQL',
         handler: {
           graphql: {
-            endpoint: "{env.ADOBE_COMMERCE_GRAPHQL_ENDPOINT}",
+            endpoint: '{env.ADOBE_COMMERCE_GRAPHQL_ENDPOINT}',
             operationHeaders: {
-              "Content-Type": "application/json",
-              "Store": "{context.headers['store']}"
-            }
-          }
+              'Content-Type': 'application/json',
+              Store: "{context.headers['store']}",
+            },
+          },
         },
         transforms: [
           {
             prefix: {
-              value: "Commerce_",
-              includeRootOperations: true
-            }
-          }
-        ]
+              value: 'Commerce_',
+              includeRootOperations: true,
+            },
+          },
+        ],
       },
       {
-        name: "CatalogServiceSandbox",
+        name: 'CatalogServiceSandbox',
         handler: {
           graphql: {
-            endpoint: "{env.ADOBE_SANDBOX_CATALOG_SERVICE_ENDPOINT}",
+            endpoint: '{env.ADOBE_SANDBOX_CATALOG_SERVICE_ENDPOINT}',
             operationHeaders: {
-              "Content-Type": "application/json",
-              "Magento-Environment-Id": "{context.headers['magento-environment-id']}",
-              "Magento-Website-Code": "{context.headers['magento-website-code']}",
-              "Magento-Store-View-Code": "{context.headers['magento-store-view-code']}",
-              "Magento-Store-Code": "{context.headers['magento-store-code']}",
-              "Magento-Customer-Group": "{context.headers['magento-customer-group']}",
-              "X-Api-Key": "{context.headers['x-api-key']}",
-              "Authorization": "{context.headers['Authorization']}"
+              'Content-Type': 'application/json',
+              'Magento-Environment-Id': "{context.headers['magento-environment-id']}",
+              'Magento-Website-Code': "{context.headers['magento-website-code']}",
+              'Magento-Store-View-Code': "{context.headers['magento-store-view-code']}",
+              'Magento-Store-Code': "{context.headers['magento-store-code']}",
+              'Magento-Customer-Group': "{context.headers['magento-customer-group']}",
+              'X-Api-Key': "{context.headers['x-api-key']}",
+              Authorization: "{context.headers['Authorization']}",
             },
             schemaHeaders: {
-              "x-api-key": "{env.ADOBE_CATALOG_API_KEY}"
-            }
-          }
+              'x-api-key': '{env.ADOBE_CATALOG_API_KEY}',
+              'Magento-Environment-Id': '{env.ADOBE_COMMERCE_ENVIRONMENT_ID}',
+              'Magento-Website-Code': '{env.ADOBE_COMMERCE_WEBSITE_CODE}',
+              'Magento-Store-View-Code': '{env.ADOBE_COMMERCE_STORE_VIEW_CODE}',
+              'Magento-Store-Code': '{env.ADOBE_COMMERCE_STORE_CODE}',
+            },
+          },
         },
         transforms: [
           {
             prefix: {
-              value: "Catalog_",
-              includeRootOperations: true
-            }
-          }
+              value: 'Catalog_',
+              includeRootOperations: true,
+            },
+          },
         ],
         responseConfig: {
-          headers: ["X-Magento-Cache-Id"]
-        }
+          headers: ['X-Magento-Cache-Id'],
+        },
       },
       {
-        name: "LiveSearchSandbox",
+        name: 'LiveSearchSandbox',
         handler: {
           graphql: {
-            endpoint: "{env.ADOBE_SANDBOX_CATALOG_SERVICE_ENDPOINT}",
+            endpoint: '{env.ADOBE_SANDBOX_CATALOG_SERVICE_ENDPOINT}',
             operationHeaders: {
-              "Content-Type": "application/json",
-              "Magento-Environment-Id": "{context.headers['magento-environment-id']}",
-              "Magento-Website-Code": "{context.headers['magento-website-code']}",
-              "Magento-Store-View-Code": "{context.headers['magento-store-view-code']}",
-              "Magento-Store-Code": "{context.headers['magento-store-code']}",
-              "Magento-Customer-Group": "{context.headers['magento-customer-group']}",
-              "X-Api-Key": "search_gql"
+              'Content-Type': 'application/json',
+              'Magento-Environment-Id': "{context.headers['magento-environment-id']}",
+              'Magento-Website-Code': "{context.headers['magento-website-code']}",
+              'Magento-Store-View-Code': "{context.headers['magento-store-view-code']}",
+              'Magento-Store-Code': "{context.headers['magento-store-code']}",
+              'Magento-Customer-Group': "{context.headers['magento-customer-group']}",
+              'X-Api-Key': 'search_gql',
             },
             schemaHeaders: {
-              "x-api-key": "{env.ADOBE_CATALOG_API_KEY}",
-              "Magento-Environment-Id": "{env.ADOBE_COMMERCE_ENVIRONMENT_ID}",
-              "Magento-Website-Code": "{env.ADOBE_COMMERCE_WEBSITE_CODE}",
-              "Magento-Store-View-Code": "{env.ADOBE_COMMERCE_STORE_VIEW_CODE}",
-              "Magento-Store-Code": "{env.ADOBE_COMMERCE_STORE_CODE}",
-              "X-Api-Key": "search_gql"
-            }
-          }
+              'x-api-key': '{env.ADOBE_CATALOG_API_KEY}',
+              'Magento-Environment-Id': '{env.ADOBE_COMMERCE_ENVIRONMENT_ID}',
+              'Magento-Website-Code': '{env.ADOBE_COMMERCE_WEBSITE_CODE}',
+              'Magento-Store-View-Code': '{env.ADOBE_COMMERCE_STORE_VIEW_CODE}',
+              'Magento-Store-Code': '{env.ADOBE_COMMERCE_STORE_CODE}',
+              'X-Api-Key': 'search_gql',
+            },
+          },
         },
         transforms: [
           {
             prefix: {
-              value: "Search_",
-              includeRootOperations: true
-            }
-          }
-        ]
-      }
+              value: 'Search_',
+              includeRootOperations: true,
+            },
+          },
+        ],
+      },
     ],
     transforms: [
       {
         filterSchema: {
-          mode: "bare",
+          mode: 'bare',
           filters: [
-            "Type.!Mutation",
-            "Query.{Citisignal_*, Catalog_productSearch, Search_productSearch, Commerce_categoryList}"
-          ]
-        }
-      }
+            'Type.!Mutation',
+            'Query.{Citisignal_*, Catalog_productSearch, Search_productSearch, Commerce_categoryList}',
+          ],
+        },
+      },
     ],
     // additionalTypeDefs will be added by build script from schema/*.graphql files
-    // Resolvers are explicitly listed for order control and security
-    // Remember to add new resolvers here when creating them
-    additionalResolvers: [
-      "./resolvers/product-cards.js",
-      "./resolvers/product-facets.js",
-      "./resolvers/search-suggestions.js",
-      "./resolvers/field-extensions.js",
-      "./resolvers/category-navigation.js",
-      "./resolvers/category-breadcrumbs.js",
-      "./resolvers/product-page.js",
-      "./resolvers/category-page.js"
-    ],
+    // additionalResolvers will be added by build script from resolvers/*.js files
     responseConfig: {
       CORS: {
         credentials: true,
-        exposedHeaders: ["Content-Range", "X-Content-Range", "X-Magento-Cache-Id"],
+        exposedHeaders: ['Content-Range', 'X-Content-Range', 'X-Magento-Cache-Id'],
         maxAge: 60480,
-        methods: ["GET", "POST"],
-        origin: "*"
-      }
-    }
-  }
+        methods: ['GET', 'POST'],
+        origin: '*',
+      },
+    },
+  },
 };

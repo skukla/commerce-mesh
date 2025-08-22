@@ -1,579 +1,681 @@
 /**
- * PRODUCT CARDS RESOLVER
- * 
- * TWO MODES OF OPERATION:
- * 1. SEARCH MODE (user has search text): 
- *    - Runs Live Search + Catalog in parallel
- *    - Uses AI ranking from Live Search with full details from Catalog
- * 
- * 2. CATALOG MODE (no search text):
- *    - Direct Catalog query for filters and initial loads
- * 
- * NOTE: All helpers must be inline due to mesh architecture limitations.
- * Cannot split into separate files or use external utilities.
- * Facets are handled by separate Citisignal_productFacets resolver.
+ * CITISIGNAL PRODUCT CARDS - CUSTOM GRAPHQL QUERY
+ *
+ * This resolver demonstrates API Mesh's ability to create completely custom queries
+ * with custom filters, custom business logic, and custom response shapes.
+ *
+ * What Adobe gives us: Complex, nested, technical structures
+ * What we deliver: Simple, flat, business-ready data
  */
 
 // ============================================================================
-// SECTION 1: CONSTANTS
+// CUSTOM QUERY DEFINITION - The clean API we're creating
 // ============================================================================
 
-const DEFAULT_PAGE_SIZE = 24;
-const DEFAULT_MAX_PRICE = 999999;
-const DEFAULT_MIN_PRICE = 0;
+/**
+ * Our Custom Query: Citisignal_productCards
+ *
+ * INPUT:
+ *   query {
+ *     Citisignal_productCards(
+ *       phrase: "iphone"           // Optional search term
+ *       filter: {                   // Business-friendly filters
+ *         categoryUrlKey: "phones"
+ *         manufacturer: "Apple"
+ *         priceMin: 500
+ *         priceMax: 1500
+ *       }
+ *       sort: { attribute: PRICE, direction: ASC }
+ *       limit: 24
+ *       page: 1
+ *     )
+ *   }
+ *
+ * OUTPUT - Our custom response shape:
+ *   {
+ *     items: [{
+ *       // Flat, simple structure
+ *       id: "123"
+ *       sku: "IP15-PRO"
+ *       name: "iPhone 15 Pro"
+ *       urlKey: "iphone-15-pro"
+ *
+ *       // Business fields with logic applied
+ *       manufacturer: "Apple"        // Cleaned from "cs_manufacturer"
+ *       price: "$999.99"            // Formatted with currency
+ *       originalPrice: "$1,199.99"  // Only present if on sale
+ *       discountPercent: 17         // Calculated business metric
+ *       inStock: true
+ *
+ *       // Simplified media
+ *       image: {
+ *         url: "https://..."        // Ensured HTTPS
+ *         altText: "iPhone 15 Pro"
+ *       }
+ *
+ *       // Extracted variant options
+ *       memory: ["128GB", "256GB", "512GB"]
+ *       colors: [
+ *         { name: "Natural", hex: "#F5F5DC" },
+ *         { name: "Blue", hex: "#4A90E2" }
+ *       ]
+ *     }],
+ *
+ *     // Pagination with business logic
+ *     totalCount: 42
+ *     hasMoreItems: true  // Business logic: currentPage < totalPages
+ *     currentPage: 1
+ *     page_info: { ... }
+ *   }
+ */
 
 // ============================================================================
-// SECTION 2: ATTRIBUTE EXTRACTION
-// ============================================================================
-const cleanAttributeName = (name) => {
-  if (!name) return '';
-  // Remove cs_ prefix if present
-  return name.startsWith('cs_') ? name.substring(3) : name;
-};
-
-const ensureHttpsUrl = (url) => {
-  if (!url || typeof url !== 'string') return url;
-  
-  // Handle protocol-relative URLs (//domain.com)
-  if (url.startsWith('//')) {
-    return 'https:' + url;
-  }
-  
-  // Convert HTTP to HTTPS for secure delivery
-  return url.replace(/^http:\/\//, 'https://');
-};
-
-const extractAttributeValue = (attributes, attributeName, defaultValue = '') => {
-  if (!attributes || !Array.isArray(attributes)) return defaultValue;
-  
-  // Look for both cs_ prefixed and clean versions
-  const csName = `cs_${attributeName}`;
-  const attr = attributes.find(a => 
-    a.name === attributeName || 
-    a.name === csName ||
-    cleanAttributeName(a.name) === attributeName
-  );
-  
-  return attr?.value || defaultValue;
-};
-
-const extractRegularPrice = (product) => {
-  const isComplex = product.__typename === 'Catalog_ComplexProductView';
-  return isComplex 
-    ? product.priceRange?.minimum?.regular?.amount?.value
-    : product.price?.regular?.amount?.value;
-};
-
-const extractFinalPrice = (product) => {
-  const isComplex = product.__typename === 'Catalog_ComplexProductView';
-  return isComplex 
-    ? product.priceRange?.minimum?.final?.amount?.value
-    : product.price?.final?.amount?.value;
-};
-
-const extractOptionByTitle = (options, title) => {
-  if (!options) return null;
-  return options.find(opt => opt.title === title);
-};
-
-const extractMemoryOptions = (options) => {
-  const memoryOption = extractOptionByTitle(options, 'Memory');
-  return memoryOption?.values?.map(v => v.title) || [];
-};
-
-const extractColorOptions = (options) => {
-  const colorOption = extractOptionByTitle(options, 'Color');
-  return colorOption?.values?.map(v => ({
-    name: v.title,
-    hex: v.value || '#000000'
-  })) || [];
-};
-
-const isOnSale = (regularPrice, finalPrice) => {
-  return finalPrice < regularPrice;
-};
-
-const calculateDiscountPercentage = (regularPrice, finalPrice) => {
-  if (!regularPrice || regularPrice <= 0) return 0;
-  if (!finalPrice || finalPrice >= regularPrice) return 0;
-  
-  const discount = ((regularPrice - finalPrice) / regularPrice) * 100;
-  return Math.round(discount); // Return as whole number for display
-};
-
-const formatPrice = (amount) => {
-  if (amount === null || amount === undefined) return null;
-  // Add comma formatting for thousands
-  return `$${amount.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`;
-};
-
-// ============================================================================
-// SECTION 3: FILTER CONVERSION
+// CUSTOM FILTER TRANSFORMATION - Business filters to Adobe format
 // ============================================================================
 
+/**
+ * Transform business-friendly filters to service-specific formats
+ *
+ * OUR CUSTOM FILTER (what frontend sends):
+ *   filter: {
+ *     categoryUrlKey: "phones",
+ *     manufacturer: "Apple",
+ *     priceMin: 500,
+ *     priceMax: 1500
+ *   }
+ *
+ * ADOBE'S REQUIRED FORMAT (what we transform it to):
+ *   filter: [
+ *     { attribute: "categoryPath", in: ["phones"] },
+ *     { attribute: "cs_manufacturer", in: ["Apple"] },
+ *     { attribute: "price", range: { from: 500, to: 1500 } }
+ *   ]
+ *
+ * Notice: Technical prefixes (cs_), nested structures, different attribute names
+ */
 const buildCatalogFilters = (filter) => {
   if (!filter) return [];
-  
+
   const catalogFilters = [];
-  
-  if (filter.category) {
+
+  // Category filter - uses URL key like "phones"
+  if (filter.categoryUrlKey) {
     catalogFilters.push({
       attribute: 'categoryPath',
-      in: [filter.category]
+      in: [filter.categoryUrlKey],
     });
   }
-  
-  if (filter.manufacturer) {
-    catalogFilters.push({
-      attribute: 'cs_manufacturer',  // Adobe expects cs_ prefix
-      in: [filter.manufacturer]
-    });
-  }
-  
-  if (filter.priceMin !== undefined || filter.priceMax !== undefined) {
-    catalogFilters.push({
-      attribute: 'price',
-      range: {
-        from: filter.priceMin || DEFAULT_MIN_PRICE,
-        to: filter.priceMax || DEFAULT_MAX_PRICE
+
+  // Handle dynamic facets from JSON object
+  if (filter.facets && typeof filter.facets === 'object') {
+    Object.entries(filter.facets).forEach(([urlKey, value]) => {
+      // Convert URL key back to Adobe attribute code
+      const attributeCode = urlKeyToAttributeCode(urlKey);
+
+      if (attributeCode === 'price' && Array.isArray(value) && value.length > 0) {
+        const [min, max] = value[0].split('-').map(parseFloat);
+        catalogFilters.push({
+          attribute: attributeCode,
+          range: { from: min || 0, to: max || 999999 },
+        });
+      } else if (value && (Array.isArray(value) ? value.length > 0 : true)) {
+        catalogFilters.push({
+          attribute: attributeCode,
+          in: Array.isArray(value) ? value : [value],
+        });
       }
     });
   }
-  
+
+  // Handle onSaleOnly filter - special case that applies after fetching
+  // Note: This is handled post-fetch since Adobe doesn't have a direct filter for it
+
   return catalogFilters;
 };
 
 const buildLiveSearchFilters = (filter) => {
   if (!filter) return [];
-  
+
   const searchFilters = [];
-  
-  if (filter.category) {
+
+  // Live Search uses 'categories' instead of 'categoryPath'
+  if (filter.categoryUrlKey) {
     searchFilters.push({
-      attribute: 'categories',  // Live Search uses 'categories'
-      in: [filter.category]
+      attribute: 'categories',
+      in: [filter.categoryUrlKey],
     });
   }
-  
-  if (filter.manufacturer) {
-    searchFilters.push({
-      attribute: 'cs_manufacturer',
-      in: [filter.manufacturer]
-    });
-  }
-  
-  if (filter.priceMin !== undefined || filter.priceMax !== undefined) {
-    searchFilters.push({
-      attribute: 'price',
-      range: {
-        from: filter.priceMin || DEFAULT_MIN_PRICE,
-        to: filter.priceMax || DEFAULT_MAX_PRICE
+
+  // Handle dynamic facets from JSON object
+  if (filter.facets && typeof filter.facets === 'object') {
+    Object.entries(filter.facets).forEach(([urlKey, value]) => {
+      // Convert URL key back to Adobe attribute code
+      const attributeCode = urlKeyToAttributeCode(urlKey);
+
+      if (attributeCode === 'price' && Array.isArray(value) && value.length > 0) {
+        // Special handling for price ranges
+        const [min, max] = value[0].split('-').map(parseFloat);
+        searchFilters.push({
+          attribute: attributeCode,
+          range: { from: min || 0, to: max || 999999 },
+        });
+      } else if (value && (Array.isArray(value) ? value.length > 0 : true)) {
+        // Normalize values for manufacturer attribute
+        let normalizedValue = value;
+        if (attributeCode === 'cs_manufacturer' || attributeCode === 'manufacturer') {
+          normalizedValue = Array.isArray(value)
+            ? value.map((v) => normalizeFilterValue(v))
+            : normalizeFilterValue(value);
+        }
+
+        // All other attributes use 'in' filter
+        searchFilters.push({
+          attribute: attributeCode,
+          in: Array.isArray(normalizedValue) ? normalizedValue : [normalizedValue],
+        });
       }
     });
   }
-  
+
+  // Legacy filters removed - all filtering now goes through dynamic facets
+
   return searchFilters;
 };
 
 // ============================================================================
-// SECTION 4: SORT MAPPERS
+// SERVICE ORCHESTRATION - Intelligent service selection
 // ============================================================================
 
+/**
+ * Business logic: Choose the right Adobe service based on user intent
+ */
+const shouldUseLiveSearch = (args) => {
+  // Use AI-powered Live Search when user is actively searching
+  // Use Catalog Service for browsing (faster, no AI needed)
+  return args.phrase && args.phrase.trim() !== '';
+};
+
+// ============================================================================
+// DATA TRANSFORMATION & BUSINESS LOGIC - The reshaping magic
+// ============================================================================
+
+// ============================================================================
+// BUSINESS LOGIC HELPERS - Reusable transformation functions
+// ============================================================================
+
+/**
+ * Clean technical prefixes from attribute names
+ */
+const cleanAttributeName = (name) => {
+  if (!name) return name;
+  return name.startsWith('cs_') ? name.substring(3) : name;
+};
+
+/**
+ * Normalize filter values for case-insensitive matching
+ * Capitalizes first letter to match how brand names are typically stored
+ * Examples: "apple" -> "Apple", "APPLE" -> "Apple", "Apple" -> "Apple"
+ */
+const normalizeFilterValue = (value) => {
+  if (!value || typeof value !== 'string') return value;
+  return value.charAt(0).toUpperCase() + value.slice(1).toLowerCase();
+};
+
+/**
+ * Format price for display with currency symbol and thousands separator
+ */
+const formatPrice = (amount) => {
+  // Always return a string for non-nullable price field
+  if (!amount && amount !== 0) return '$0.00';
+  return `$${amount.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`;
+};
+
+/**
+ * Calculate discount percentage from regular and final prices
+ */
+const calculateDiscountPercent = (regularPrice, finalPrice) => {
+  if (!regularPrice || !finalPrice || finalPrice >= regularPrice) return null;
+  return Math.round(((regularPrice - finalPrice) / regularPrice) * 100);
+};
+
+/**
+ * Ensure URL uses HTTPS protocol
+ */
+const ensureHttpsUrl = (url) => {
+  if (!url || typeof url !== 'string') return url;
+
+  // Handle protocol-relative URLs (//domain.com)
+  if (url.startsWith('//')) {
+    return 'https:' + url;
+  }
+
+  // Replace HTTP with HTTPS
+  if (url.startsWith('http://')) {
+    return url.replace('http://', 'https://');
+  }
+
+  return url;
+};
+
+/**
+ * Extract price value from nested price structure
+ */
+const extractPriceValue = (product, priceType, isComplex) => {
+  if (isComplex) {
+    return priceType === 'regular'
+      ? product.priceRange?.minimum?.regular?.amount?.value
+      : product.priceRange?.minimum?.final?.amount?.value;
+  }
+  return priceType === 'regular'
+    ? product.price?.regular?.amount?.value
+    : product.price?.final?.amount?.value;
+};
+
+/**
+ * Find attribute value by name (checks both with and without cs_ prefix)
+ */
+const findAttributeValue = (attributes, name) => {
+  if (!attributes || !Array.isArray(attributes)) return null;
+  // First try with cs_ prefix (more specific)
+  let attr = attributes.find((a) => a.name === `cs_${name}`);
+  // Then try without prefix
+  if (!attr) {
+    attr = attributes.find((a) => a.name === name);
+  }
+  return attr?.value;
+};
+
+/**
+ * Extract and transform variant options from product
+ * Dynamically handles all cs_ prefixed options
+ */
+const extractVariantOptions = (options) => {
+  const variantOptions = {};
+
+  if (!options || !Array.isArray(options)) {
+    return variantOptions;
+  }
+
+  options.forEach((option) => {
+    if (option.id?.startsWith('cs_')) {
+      // Clean the option name using helper
+      const cleanOptionName = cleanAttributeName(option.id);
+
+      // Special handling for color options (include hex values)
+      if (cleanOptionName === 'color' && option.values) {
+        variantOptions.colors = option.values.map((v) => ({
+          name: v.title,
+          hex: v.value || '#000000',
+        }));
+      }
+      // Standard handling for other options (memory, storage, etc.)
+      else if (option.values) {
+        variantOptions[cleanOptionName] = option.values.map((v) => v.title);
+      }
+    }
+  });
+
+  return variantOptions;
+};
+
+/**
+ * Transform complex Adobe product structure to our custom shape
+ *
+ * INPUT (from Adobe):
+ * {
+ *   productView: {
+ *     __typename: "Catalog_ComplexProductView",
+ *     sku: "IP15-PRO",
+ *     name: "iPhone 15 Pro",
+ *     priceRange: {
+ *       minimum: {
+ *         regular: { amount: { value: 1199.99, currency: "USD" } },
+ *         final: { amount: { value: 999.99, currency: "USD" } }
+ *       }
+ *     },
+ *     attributes: [
+ *       { name: "cs_manufacturer", value: "Apple" }
+ *     ],
+ *     options: {
+ *       title: "Memory",
+ *       values: [{ title: "128GB" }, { title: "256GB" }]
+ *     }
+ *   }
+ * }
+ *
+ * OUTPUT (our custom shape):
+ * {
+ *   id: "123",
+ *   sku: "IP15-PRO",
+ *   name: "iPhone 15 Pro",
+ *   manufacturer: "Apple",        // Cleaned
+ *   price: "$999.99",            // Formatted
+ *   originalPrice: "$1,199.99",  // Formatted
+ *   discountPercent: 17,         // Calculated
+ *   memory: ["128GB", "256GB"]   // Extracted
+ * }
+ */
+const transformProductToCard = (product) => {
+  if (!product) return null;
+
+  // --- EXTRACT FROM NESTED STRUCTURES ---
+  const isComplex = product.__typename === 'Catalog_ComplexProductView';
+  const regularPrice = extractPriceValue(product, 'regular', isComplex);
+  const finalPrice = extractPriceValue(product, 'final', isComplex);
+  const manufacturer = findAttributeValue(product.attributes, 'manufacturer');
+
+  // --- APPLY BUSINESS LOGIC ---
+  const isOnSale = regularPrice && finalPrice && finalPrice < regularPrice;
+  const discountPercent = calculateDiscountPercent(regularPrice, finalPrice);
+  // manufacturer value should be used as-is from cs_manufacturer attribute
+  const cleanManufacturer = manufacturer;
+  const variantOptions = extractVariantOptions(product.options);
+  const imageUrl = product.images?.[0]?.url;
+  const secureImageUrl = ensureHttpsUrl(imageUrl);
+
+  // --- BUILD CUSTOM RESPONSE SHAPE ---
+  return {
+    // Basic fields - flat structure
+    id: product.id,
+    sku: product.sku,
+    name: product.name,
+    urlKey: product.urlKey || '',
+
+    // Business fields with transformations
+    manufacturer: cleanManufacturer || null,
+    price: formatPrice(finalPrice),
+    originalPrice: isOnSale ? formatPrice(regularPrice) : null,
+    discountPercent,
+    inStock: product.inStock || false,
+
+    // Simplified media structure
+    image: imageUrl
+      ? {
+          url: secureImageUrl,
+          altText: product.images[0].label || product.name,
+        }
+      : null,
+
+    // Variant options - dynamically included based on what's available
+    ...variantOptions,
+  };
+};
+
+// ============================================================================
+// SORT MAPPING - Business sort to service format
+// ============================================================================
+
+/**
+ * Transform business-friendly sort to service-specific formats
+ *
+ * OUR CUSTOM SORT (what frontend sends):
+ *   sort: { attribute: "PRICE", direction: "ASC" }
+ *
+ * ADOBE'S REQUIRED FORMAT:
+ *   Catalog: { attribute: "price", direction: "ASC" }
+ *   Live Search: [{ attribute: "price", direction: "ASC" }]  // Array format
+ *
+ * Note: "RELEVANCE" only works with AI-powered Live Search, not Catalog
+ */
 const mapSortForCatalog = (sort) => {
   if (!sort) return null;
-  
-  // Catalog Service doesn't support relevance sorting
-  // That's an AI feature only available in Live Search
-  if (sort.attribute === 'RELEVANCE') {
-    return null; // Don't send any sort for relevance in catalog mode
-  }
-  
-  // Map attribute names to Catalog Service field names
+
+  // Catalog doesn't support AI relevance sorting
+  if (sort.attribute === 'RELEVANCE') return null;
+
   const attributeMap = {
-    'PRICE': 'price',
-    'NAME': 'name'
+    PRICE: 'price',
+    NAME: 'name',
   };
-  
+
   const fieldName = attributeMap[sort.attribute];
   if (!fieldName) return null;
-  
-  // Catalog Service expects a sort object with attribute and direction
-  // Direction must be the actual enum value, not a string
+
   return {
     attribute: fieldName,
-    direction: sort.direction || 'DESC'
+    direction: sort.direction || 'DESC',
   };
 };
 
 const mapSortForLiveSearch = (sort) => {
   if (!sort) return [];
-  
-  // Map attribute names to Live Search field names
+
   const attributeMap = {
-    'PRICE': 'price',
-    'NAME': 'name',
-    'RELEVANCE': 'relevance'
+    PRICE: 'price',
+    NAME: 'name',
+    RELEVANCE: 'relevance', // AI-powered sorting
   };
-  
+
   const fieldName = attributeMap[sort.attribute];
   if (!fieldName) return [];
-  
-  // Live Search expects an array of sort objects
-  return [{
-    attribute: fieldName,
-    direction: sort.direction || 'DESC'
-  }];
+
+  return [
+    {
+      attribute: fieldName,
+      direction: sort.direction || 'DESC',
+    },
+  ];
 };
 
 // ============================================================================
-// SECTION 5: PRODUCT TRANSFORMATION
+// PERFORMANCE OPTIMIZATION - Parallel execution for search
 // ============================================================================
 
-const shouldUseLiveSearch = (args) => {
-  // Use Live Search when user is actively searching
-  // This gives us AI-powered relevance ranking
-  if (args.phrase && args.phrase.trim() !== '') return true;
-  
-  // For filters without search, use Catalog directly
-  return false;
-};
+const executeSearchMode = async (context, args) => {
+  const liveSearchFilters = buildLiveSearchFilters(args.filter);
+  const catalogFilters = buildCatalogFilters(args.filter);
 
-// Extract SKUs from Live Search results while preserving order
-const extractOrderedSkus = (liveSearchResult) => {
-  const skus = [];
-  if (liveSearchResult?.items) {
-    liveSearchResult.items.forEach(item => {
-      const sku = item.productView?.sku || item.product?.sku;
-      if (sku) skus.push(sku);
-    });
-  }
-  return skus;
-};
+  // Run both queries in parallel - 50% faster than sequential
+  const [liveSearchResult, catalogResult] = await Promise.all([
+    // Get AI ranking from Live Search (minimal fields)
+    context.LiveSearchSandbox.Query.Search_productSearch({
+      root: {},
+      args: {
+        phrase: args.phrase || '',
+        filter: liveSearchFilters,
+        page_size: args.limit || 24,
+        current_page: args.page || 1,
+        sort: mapSortForLiveSearch(args.sort),
+      },
+      context,
+      selectionSet: `{
+        items {
+          product { sku }
+          productView { sku }
+        }
+        total_count
+        page_info { current_page page_size total_pages }
+      }`,
+    }),
 
-// Build a map of SKU to product for fast lookups
-const buildProductMap = (catalogResult) => {
+    // Get full product details from Catalog
+    context.CatalogServiceSandbox.Query.Catalog_productSearch({
+      root: {},
+      args: {
+        phrase: args.phrase || '',
+        filter: catalogFilters,
+        page_size: args.limit || 24,
+        current_page: args.page || 1,
+        sort: mapSortForCatalog(args.sort),
+      },
+      context,
+      selectionSet: `{
+        items {
+          productView {
+            __typename
+            id name sku urlKey inStock
+            images(roles: ["small_image"]) { url label }
+            attributes { name value }
+            ... on Catalog_SimpleProductView {
+              price {
+                regular { amount { value } }
+                final { amount { value } }
+              }
+            }
+            ... on Catalog_ComplexProductView {
+              priceRange {
+                minimum {
+                  regular { amount { value } }
+                  final { amount { value } }
+                }
+              }
+              options {
+                id
+                title
+                values {
+                  ... on Catalog_ProductViewOptionValueSwatch {
+                    title
+                    value
+                  }
+                }
+              }
+            }
+          }
+        }
+      }`,
+    }),
+  ]);
+
+  // Merge results: AI ranking with full details
+  const orderedSkus = [];
+  liveSearchResult?.items?.forEach((item) => {
+    const sku = item.productView?.sku || item.product?.sku;
+    if (sku) orderedSkus.push(sku);
+  });
+
   const productMap = new Map();
-  if (catalogResult?.items) {
-    catalogResult.items.forEach(item => {
-      const product = item.productView;
-      if (product?.sku) {
-        productMap.set(product.sku, product);
-      }
-    });
+  catalogResult?.items?.forEach((item) => {
+    if (item.productView?.sku) {
+      productMap.set(item.productView.sku, item.productView);
+    }
+  });
+
+  let items = orderedSkus
+    .map((sku) => productMap.get(sku))
+    .filter(Boolean)
+    .map(transformProductToCard);
+
+  // Apply onSaleOnly filter if specified
+  if (args.filter?.onSaleOnly) {
+    items = items.filter((item) => item.discountPercent > 0);
   }
-  return productMap;
-};
 
-// Merge products in Live Search order with Catalog data
-const mergeSearchResults = (orderedSkus, productMap) => {
-  if (!orderedSkus.length) return [];
-  
-  return orderedSkus
-    .map(sku => {
-      const product = productMap.get(sku);
-      return product ? transformProductToCard(product) : null;
-    })
-    .filter(Boolean); // Remove any nulls
-};
-
-// Build query arguments for service calls
-const buildQueryArgs = (args, filters, sort) => {
-  const queryArgs = {
-    phrase: args.phrase || '', // Catalog Service requires phrase, even if empty
-    filter: filters,
-    page_size: args.limit || DEFAULT_PAGE_SIZE,
-    current_page: args.page || 1
-  };
-  
-  if (sort) {
-    queryArgs.sort = sort;
-  }
-  
-  return queryArgs;
-};
-
-// Transform a Catalog product to our standard format
-// Used by both modes to ensure consistent output
-const transformProductToCard = (product) => {
-  const isComplex = product.__typename === 'Catalog_ComplexProductView';
-  const regularPrice = extractRegularPrice(product);
-  const finalPrice = extractFinalPrice(product);
-  const onSale = isOnSale(regularPrice, finalPrice);
-  
-  const image = product.images?.[0] ? {
-    url: ensureHttpsUrl(product.images[0].url),
-    altText: product.images[0].label || product.name
-  } : null;
-  
   return {
-    id: product.id,
-    sku: product.sku,
-    urlKey: product.urlKey || '',
-    name: product.name,
-    manufacturer: extractAttributeValue(product.attributes, 'manufacturer', null),
-    price: formatPrice(finalPrice),
-    originalPrice: onSale ? formatPrice(regularPrice) : null,
-    discountPercent: onSale ? calculateDiscountPercentage(regularPrice, finalPrice) : null,
-    inStock: product.inStock || false,
-    image: image,
-    memory: isComplex && extractMemoryOptions(product.options).length > 0 ? extractMemoryOptions(product.options) : null,
-    colors: isComplex && extractColorOptions(product.options).length > 0 ? extractColorOptions(product.options) : null
+    items,
+    pageInfo: liveSearchResult?.page_info,
+    totalCount: args.filter?.onSaleOnly ? items.length : liveSearchResult?.total_count || 0,
   };
 };
 
 // ============================================================================
-// SECTION 6: SERVICE QUERIES
+// CATALOG MODE - Direct catalog query for browsing
 // ============================================================================
 
-// Query 1: Basic Catalog query (no facets) - used for initial page loads
-const PRODUCT_CARD_QUERY = `{
-  total_count
-  page_info {
-    current_page
-    page_size
-    total_pages
-  }
-  items {
-    productView {
-      __typename
-      id
-      name
-      sku
-      urlKey
-      inStock
-      images(roles: ["small_image"]) {
-        url
-        label
-        roles
-      }
-      ... on Catalog_SimpleProductView {
-        price {
-          regular {
-            amount {
-              value
-              currency
+const executeCatalogMode = async (context, args) => {
+  const result = await context.CatalogServiceSandbox.Query.Catalog_productSearch({
+    root: {},
+    args: {
+      phrase: '',
+      filter: buildCatalogFilters(args.filter),
+      page_size: args.limit || 24,
+      current_page: args.page || 1,
+      sort: mapSortForCatalog(args.sort),
+    },
+    context,
+    selectionSet: `{
+      total_count
+      page_info { current_page page_size total_pages }
+      items {
+        productView {
+          __typename
+          id name sku urlKey inStock
+          images(roles: ["small_image"]) { url label }
+          attributes { name value }
+          ... on Catalog_SimpleProductView {
+            price {
+              regular { amount { value } }
+              final { amount { value } }
             }
           }
-          final {
-            amount {
-              value
-              currency
-            }
-          }
-        }
-        attributes {
-          name
-          label
-          value
-        }
-      }
-      ... on Catalog_ComplexProductView {
-        priceRange {
-          minimum {
-            regular {
-              amount {
-                value
-                currency
+          ... on Catalog_ComplexProductView {
+            priceRange {
+              minimum {
+                regular { amount { value } }
+                final { amount { value } }
               }
             }
-            final {
-              amount {
-                value
-                currency
-              }
-            }
-          }
-        }
-        options {
-          title
-          values {
-            ... on Catalog_ProductViewOptionValueSwatch {
+            options {
+              id
               title
-              value
+              values {
+                ... on Catalog_ProductViewOptionValueSwatch {
+                  title value
+                }
+              }
             }
           }
         }
-        attributes {
-          name
-          label
-          value
-        }
       }
-    }
-  }
-  page_info {
-    current_page
-    page_size
-    total_pages
-  }
-  total_count
-}`;
+    }`,
+  });
 
-// Query 2: Live Search query (minimal) - only gets SKUs and ranking
-const LIVE_SEARCH_QUERY = `{
-  items {
-    product {
-      sku
-      name
-    }
-    productView {
-      sku
-    }
-  }
-  page_info {
-    current_page
-    page_size
-    total_pages
-  }
-  total_count
-}`;
+  let items =
+    result?.items?.map((item) => transformProductToCard(item.productView)).filter(Boolean) || [];
 
+  // Apply onSaleOnly filter if specified
+  if (args.filter?.onSaleOnly) {
+    items = items.filter((item) => item.discountPercent > 0);
+  }
+
+  return {
+    items,
+    pageInfo: result?.page_info,
+    totalCount: args.filter?.onSaleOnly ? items.length : result?.total_count || 0,
+  };
+};
 
 // ============================================================================
-// SECTION 7: MAIN RESOLVER
+// MAIN RESOLVER - Brings it all together
 // ============================================================================
 
 module.exports = {
   resolvers: {
     Query: {
       Citisignal_productCards: {
-        resolve: async (root, args, context, info) => {
+        resolve: async (_root, args, context, _info) => {
           try {
-            const useLiveSearch = shouldUseLiveSearch(args);
-            let searchResult;
-            let items = [];
-            
-            // ==================================================================
-            // MODE 1: SEARCH WITH AI RANKING (Parallel Live Search + Catalog)
-            // ==================================================================
-            if (useLiveSearch) {
-              // Run BOTH queries in parallel for better performance
-              const liveSearchFilters = buildLiveSearchFilters(args.filter);
-              const catalogFilters = buildCatalogFilters(args.filter);
-              const searchSort = mapSortForLiveSearch(args.sort);
-              
-              // Build query arguments
-              const liveSearchArgs = buildQueryArgs(args, liveSearchFilters, searchSort);
-              const catalogArgs = buildQueryArgs(args, catalogFilters, 
-                searchSort ? mapSortForCatalog(args.sort) : undefined);
-              
-              // Start both queries at the same time
-              const [liveSearchResult, catalogSearchResult] = await Promise.all([
-                // Query 1: Live Search for ranking
-                context.LiveSearchSandbox.Query.Search_productSearch({
-                  root: {},
-                  args: liveSearchArgs,
-                  context,
-                  selectionSet: LIVE_SEARCH_QUERY
-                }),
-                // Query 2: Catalog search for full product details
-                context.CatalogServiceSandbox.Query.Catalog_productSearch({
-                  root: {},
-                  args: catalogArgs,
-                  context,
-                  selectionSet: PRODUCT_CARD_QUERY
-                })
-              ]);
-              
-              // Extract SKUs from Live Search results (preserving order)
-              const orderedSkus = extractOrderedSkus(liveSearchResult);
-              
-              // Create a map of SKU to full product data from Catalog results
-              const productMap = buildProductMap(catalogSearchResult);
-              
-              // Merge results maintaining Live Search order
-              items = mergeSearchResults(orderedSkus, productMap);
-              
-              // Set pagination info from Live Search
-              searchResult = liveSearchResult;
-              
-            // ==================================================================
-            // MODE 2: CATALOG ONLY (with or without facets based on request)
-            // ==================================================================
-            } else {
-              // Use Catalog Service for all non-search queries
-              const catalogFilters = buildCatalogFilters(args.filter);
-              const catalogSort = mapSortForCatalog(args.sort);
-              const catalogArgs = buildQueryArgs(args, catalogFilters, catalogSort);
-              
-              searchResult = await context.CatalogServiceSandbox.Query.Catalog_productSearch({
-                root: {},
-                args: catalogArgs,
-                context,
-                selectionSet: PRODUCT_CARD_QUERY
-              });
-              
-              // Transform products using standard transformer
-              if (searchResult?.items) {
-                items = searchResult.items.map(item => 
-                  transformProductToCard(item.productView)
-                );
-              }
-              
-            }
-            
-            // ==================================================================
-            // FINAL RESPONSE FORMATTING
-            // ==================================================================
-            // Build debug info if requested in query
-            const debugInfo = {};
-            
-            // Ensure we always have valid pagination values (non-nullable fields)
-            const pageArg = args.page || 1;
-            const limitArg = args.limit || 20;
-            
-            debugInfo.receivedArgs = args;
-            debugInfo.searchResultExists = !!searchResult;
-            debugInfo.searchResultPageInfo = searchResult?.page_info;
-            
-            const currentPage = searchResult?.page_info?.current_page || pageArg;
-            const pageSize = searchResult?.page_info?.page_size || limitArg;
-            const totalCount = searchResult?.total_count || items.length || 0;
-            const totalPages = searchResult?.page_info?.total_pages || 1;
-            
-            debugInfo.calculated = {
-              currentPage,
-              pageSize,
-              totalPages,
-              totalCount,
-              pageArg,
-              limitArg,
-              itemsLength: items.length
-            };
-            
-            // Extract facets/aggregations (only on first page to reduce duplication)
-            const facets = (currentPage === 1 && searchResult?.facets) ? 
-              searchResult.facets : [];
-            
-            const response = {
-              items: items || [],
-              totalCount: totalCount,
-              hasMoreItems: currentPage < totalPages,
+            // 1. Decide strategy based on user intent
+            const useSearch = shouldUseLiveSearch(args);
+
+            // 2. Execute with appropriate service(s)
+            const result = useSearch
+              ? await executeSearchMode(context, args)
+              : await executeCatalogMode(context, args);
+
+            // 3. Extract pagination data (with fallbacks for missing values)
+            const currentPage = result.pageInfo?.current_page || args.page || 1;
+            const totalPages = result.pageInfo?.total_pages || 1;
+
+            // 4. Return our custom response shape
+            // Notice: We add "hasMoreItems" - a calculated business field
+            // Adobe doesn't provide this, but frontends need it for pagination UI
+            return {
+              items: result.items || [],
+              totalCount: result.totalCount,
+              hasMoreItems: currentPage < totalPages, // Calculated: more pages available?
               currentPage: currentPage,
               page_info: {
                 current_page: currentPage,
-                page_size: pageSize,
-                total_pages: totalPages
+                page_size: result.pageInfo?.page_size || args.limit || 24,
+                total_pages: totalPages,
               },
-              facets: facets,
-              aggregations: facets  // Alias for frontend compatibility
             };
-            
-            // Only include debug field if requested in selection set
-            const includeDebug = info?.fieldNodes?.[0]?.selectionSet?.selections?.some(
-              s => s.name?.value === '_debug'
-            );
-            
-            if (includeDebug) {
-              response._debug = JSON.stringify(debugInfo, null, 2);
-            }
-            
-            return response;
           } catch (error) {
+            console.error('Product cards resolver error:', error);
             throw error;
           }
-        }
-      }
-    }
-  }
+        },
+      },
+    },
+  },
 };
