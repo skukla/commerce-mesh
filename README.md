@@ -9,8 +9,10 @@ This API Mesh provides:
 - **Unified GraphQL endpoint** combining multiple Adobe Commerce services
 - **Dynamic facet system** with SEO-friendly URL mapping
 - **Enhanced product resolvers** with normalized data structures
+- **Smart utility injection** - Eliminates code duplication across resolvers
 - **Build-time injection pattern** to overcome API Mesh limitations
 - **SSR-optimized queries** for complete page data in single requests
+- **Clean resolver architecture** - Focus on orchestration, not implementation
 
 ## Prerequisites
 

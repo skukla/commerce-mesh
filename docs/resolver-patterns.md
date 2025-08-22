@@ -13,9 +13,16 @@ Adobe API Mesh resolvers must be self-contained due to platform limitations. Thi
 - Each resolver must be completely self-contained
 - Code duplication is unavoidable but manageable
 
-### Solution: Shared Utilities Template
+### Solution: Utility Injection Pattern
 
-We maintain `resolvers-src/shared-utilities-template.js` as a reference implementation of common functions. When creating or updating resolvers, developers copy needed functions from this template.
+We use a smart build-time injection system that:
+
+1. Maintains utilities in separate modules (`resolvers-src/utils/`)
+2. Automatically detects which utilities each resolver needs
+3. Injects only required functions at build time
+4. Eliminates manual copying and duplication
+
+See [Utility Injection Pattern](./utility-injection-pattern.md) for details.
 
 ## Standard Resolver Structure
 
