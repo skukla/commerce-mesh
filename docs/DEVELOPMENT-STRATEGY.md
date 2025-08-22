@@ -26,7 +26,7 @@ Adobe API Mesh configuration for CitiSignal e-commerce integration.
 **Build-Time Injection Pattern**:
 
 - `config/facet-mappings.json` - Defines URL mappings for SEO (e.g., `cs_manufacturer` → `manufacturer`)
-- Build script injects mappings into resolvers at build time (avoids import limitations)
+- Build script injects mappings from source (`resolvers-src/`) into generated resolvers (`resolvers/`) at build time (avoids import limitations)
 - Bidirectional mapping: URL keys ↔ Adobe attribute codes
 - Frontend uses clean `key` field, mesh handles all mapping logic
 
@@ -95,7 +95,7 @@ The `Citisignal_*` wildcard ensures all custom queries are exposed. Without this
 
 **Shared Utilities Template**:
 
-- `shared-utilities-template.js` - Reference implementation of common functions
+- `resolvers-src/shared-utilities-template.js` - Reference implementation of common functions
 - Copy needed functions from template when creating/updating resolvers
 - Maintains consistency despite necessary code duplication
 

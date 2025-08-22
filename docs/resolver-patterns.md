@@ -15,7 +15,7 @@ Adobe API Mesh resolvers must be self-contained due to platform limitations. Thi
 
 ### Solution: Shared Utilities Template
 
-We maintain `resolvers/shared-utilities-template.js` as a reference implementation of common functions. When creating or updating resolvers, developers copy needed functions from this template.
+We maintain `resolvers-src/shared-utilities-template.js` as a reference implementation of common functions. When creating or updating resolvers, developers copy needed functions from this template.
 
 ## Standard Resolver Structure
 

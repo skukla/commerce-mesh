@@ -89,12 +89,12 @@ The build process (`npm run build`) performs several critical steps:
 commerce-mesh/
 ├── config/
 │   └── facet-mappings.json    # SEO-friendly URL mappings
-├── resolvers/                  # Source resolver files
+├── resolvers-src/              # Source resolver files
 │   ├── category-page.js       # Unified category page data
 │   ├── product-cards.js       # Product listing with filters
 │   ├── product-facets.js      # Dynamic facets/filters
 │   └── ...
-├── resolvers-processed/        # Generated resolvers with injections
+├── resolvers/                  # Generated resolvers with injections
 ├── scripts/
 │   ├── build-mesh.js          # Build script with injection logic
 │   └── update-mesh.js         # Deployment script

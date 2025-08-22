@@ -17,9 +17,9 @@ config/
   facet-mappings.json    # Configuration to inject
 scripts/
   build-mesh.js          # Build script with injection logic
-resolvers/
+resolvers-src/
   product-facets.js      # Original resolver files
-resolvers-processed/
+resolvers/
   product-facets.js      # Generated with injected code
 ```
 
@@ -28,8 +28,8 @@ resolvers-processed/
 ```javascript
 // scripts/build-mesh.js
 function processResolversWithMappings() {
-  const resolversDir = path.join(__dirname, '..', 'resolvers');
-  const processedDir = path.join(__dirname, '..', 'resolvers-processed');
+  const resolversDir = path.join(__dirname, '..', 'resolvers-src');
+  const processedDir = path.join(__dirname, '..', 'resolvers');
 
   // Load configuration
   const config = JSON.parse(fs.readFileSync('config/facet-mappings.json'));
@@ -65,8 +65,8 @@ const helperFunction = () => {
 // mesh.json uses processed resolvers
 {
   "additionalResolvers": [
-    "./resolvers-processed/product-facets.js",  // Use processed version
-    "./resolvers-processed/product-cards.js"
+    "./resolvers/product-facets.js",  // Use generated version
+    "./resolvers/product-cards.js"
   ]
 }
 ```
@@ -75,7 +75,7 @@ const helperFunction = () => {
 
 ```
 # .gitignore
-resolvers-processed/  # Don't commit generated files
+resolvers/  # Don't commit generated files
 ```
 
 ## Use Cases
@@ -121,7 +121,7 @@ resolvers-processed/  # Don't commit generated files
 ### Injected Result
 
 ```javascript
-// resolvers-processed/product-facets.js
+// resolvers/product-facets.js
 const FACET_MAPPINGS = {
   mappings: {
     cs_manufacturer: 'manufacturer',

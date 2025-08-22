@@ -5,15 +5,15 @@
 The mesh build process uses a build-time injection pattern to overcome API Mesh limitations:
 
 1. **Source Files**:
-   - `/resolvers/*.js` - Original resolver files
+   - `/resolvers-src/*.js` - Original resolver files
    - `/config/facet-mappings.json` - Configuration for facet mapping
    - `/schemas/schema.graphql` - GraphQL type definitions
    - `mesh.config.js` - Mesh configuration
 
 2. **Build Process**:
    - Processes resolvers with injected configuration and utilities
-   - Creates `/resolvers-processed/` directory with enhanced resolvers
-   - Generates `mesh.json` with references to processed resolvers
+   - Creates `/resolvers/` directory with enhanced resolvers
+   - Generates `mesh.json` with references to generated resolvers
 
 ### Build Commands
 
@@ -25,7 +25,7 @@ The build script (`scripts/build-mesh.js`) automatically:
 
 - Loads facet mappings from `/config/`
 - Injects configuration and helper functions into each resolver
-- Creates processed versions in `/resolvers-processed/`
+- Creates generated versions in `/resolvers/`
 - Generates `mesh.json` with correct resolver paths
 - Validates the configuration
 
@@ -101,10 +101,10 @@ Since API Mesh runs in Adobe's cloud, there's no true local development. However
 
 ### Adding a New Resolver
 
-1. Create the resolver in `/resolvers/`:
+1. Create the resolver in `/resolvers-src/`:
 
 ```javascript
-// resolvers/my-new-resolver.js
+// resolvers-src/my-new-resolver.js
 module.exports = {
   resolvers: {
     Query: {

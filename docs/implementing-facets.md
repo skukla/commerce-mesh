@@ -36,7 +36,7 @@ This document covers the implementation details for product facets (filters) in 
 
 3. **Build-Time Injection** - Mappings are injected into resolvers at build time:
    - Avoids API Mesh import limitations
-   - Creates `resolvers-processed/` directory with injected code
+   - Creates `resolvers/` directory with generated code
    - Adds `attributeCodeToUrlKey()` and `urlKeyToAttributeCode()` helper functions
 
 ### Data Flow
@@ -195,7 +195,7 @@ Filters are cumulative using AND logic:
 
 ## Resolver Files
 
-The following resolvers implement facet filtering:
+The following resolvers in `/resolvers-src/` implement facet filtering:
 
 1. **product-facets.js**: Returns filter options with counts
 2. **product-cards.js**: Returns filtered products
