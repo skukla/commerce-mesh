@@ -131,8 +131,6 @@ const buildCatalogFilters = (categoryUrlKey, pageFilter) => {
         }
       });
     }
-
-    // Legacy filters removed - all filtering now goes through dynamic facets
   }
 
   return filters;
@@ -186,8 +184,6 @@ const buildLiveSearchFilters = (categoryUrlKey, pageFilter) => {
         }
       });
     }
-
-    // Legacy filters removed - all filtering now goes through dynamic facets
   }
 
   return filters;
