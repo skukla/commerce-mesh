@@ -48,8 +48,7 @@ workspace.json
 .mesh-deploy-hash
 .mesh-deploy-hash-prod
 
-# Generated resolvers (created at build time from resolvers-src/)
-resolvers/
+# Generated files are now in build/ directory
 
 # fnm
 .node-version

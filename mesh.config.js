@@ -106,7 +106,7 @@ module.exports = {
       },
     ],
     // additionalTypeDefs will be added by build script from schema/*.graphql files
-    // additionalResolvers will be added by build script from resolvers/*.js files
+    // additionalResolvers will be added by build script from build/resolvers/*.js files
     responseConfig: {
       CORS: {
         credentials: true,
