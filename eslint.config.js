@@ -25,23 +25,23 @@ module.exports = [
   },
   {
     // Special globals for resolver files that will be injected at build time
-    files: ['resolvers/**/*.js'],
+    files: ['build/resolvers/**/*.js', 'resolvers-src/utils/**/*.js'],
     languageOptions: {
       globals: {
         FACET_MAPPINGS: 'readonly',
         attributeCodeToUrlKey: 'readonly',
         urlKeyToAttributeCode: 'readonly',
+        extractPriceValue: 'readonly',
+        findAttributeValue: 'readonly',
+        isOnSale: 'readonly',
+        calculateDiscountPercent: 'readonly',
+        extractVariantOptions: 'readonly',
+        ensureHttpsUrl: 'readonly',
+        formatPrice: 'readonly',
       },
     },
   },
   {
-    // Template file is not meant to be executed directly
-    files: ['resolvers/shared-utilities-template.js'],
-    rules: {
-      'no-unused-vars': 'off',
-    },
-  },
-  {
-    ignores: ['node_modules/**', 'build/**', 'mesh.json', 'resolvers-processed/**'],
+    ignores: ['node_modules/**', 'mesh.json', 'build/**'],
   },
 ];
