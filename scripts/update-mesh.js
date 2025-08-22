@@ -86,7 +86,7 @@ function isProdEnvironment(args) {
  */
 function getSourceFilesHash() {
   try {
-    const resolversDir = path.join(__dirname, '..', 'resolvers');
+    const resolversDir = path.join(__dirname, '..', 'build', 'resolvers');
     const schemasDir = path.join(__dirname, '..', 'schema');
 
     let combinedContent = '';

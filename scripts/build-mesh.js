@@ -87,14 +87,185 @@ function combineSchemaFiles() {
 // Note: getResolverFiles function removed in favor of processResolversWithMappings
 
 /**
- * Process resolver files to inject facet mappings
- * This creates processed versions with the mappings injected
+ * Load utility modules from resolvers-src/utils/
+ * @returns {object} Map of utility module names to their functions
+ */
+function loadUtilityModules() {
+  const utilsDir = path.join(__dirname, '..', 'resolvers-src', 'utils');
+  const utilities = {};
+
+  if (!fs.existsSync(utilsDir)) {
+    return utilities;
+  }
+
+  const utilFiles = fs
+    .readdirSync(utilsDir)
+    .filter((file) => file.endsWith('.js') && !file.includes('facet-mapper'));
+
+  utilFiles.forEach((file) => {
+    const moduleName = file.replace('.js', '');
+    const modulePath = path.join(utilsDir, file);
+
+    try {
+      // Clear require cache to get fresh module
+      delete require.cache[require.resolve(modulePath)];
+      const moduleExports = require(modulePath);
+      utilities[moduleName] = moduleExports;
+    } catch (err) {
+      console.warn(`Warning: Could not load utility module ${file}: ${err.message}`);
+    }
+  });
+
+  return utilities;
+}
+
+/**
+ * Detect which utility functions are used in a resolver
+ * @param {string} content - Resolver file content
+ * @param {object} utilities - Available utility modules
+ * @returns {Set} Set of function names used
+ */
+function detectUsedFunctions(content, utilities) {
+  const usedFunctions = new Set();
+  const toCheck = new Set();
+
+  // Initial scan of resolver content
+  Object.values(utilities).forEach((module) => {
+    Object.keys(module).forEach((funcName) => {
+      // Check for various usage patterns
+      const patterns = [
+        new RegExp(`\\b${funcName}\\s*\\(`, 'g'), // Direct call: funcName(
+        new RegExp(`\\.map\\(${funcName}\\)`, 'g'), // Map usage: .map(funcName)
+        new RegExp(`\\.filter\\(${funcName}\\)`, 'g'), // Filter usage: .filter(funcName)
+        new RegExp(`\\(${funcName}\\)`, 'g'), // Passed as argument: (funcName)
+        new RegExp(`\\b${funcName}\\b(?=\\s*[,\\)])`, 'g'), // In argument list
+      ];
+
+      const isUsed = patterns.some((pattern) => pattern.test(content));
+      if (isUsed) {
+        usedFunctions.add(funcName);
+        toCheck.add(funcName);
+      }
+    });
+  });
+
+  // Check dependencies of used functions (transitive dependencies)
+  const checked = new Set();
+  while (toCheck.size > 0) {
+    const funcName = toCheck.values().next().value;
+    toCheck.delete(funcName);
+
+    if (checked.has(funcName)) continue;
+    checked.add(funcName);
+
+    // Find the function in utilities
+    for (const module of Object.values(utilities)) {
+      if (module[funcName]) {
+        const funcStr = module[funcName].toString();
+
+        // Check what other utility functions this function uses
+        Object.values(utilities).forEach((utilModule) => {
+          Object.keys(utilModule).forEach((depFuncName) => {
+            if (depFuncName !== funcName) {
+              // Check for function calls with parenthesis or as method arguments
+              const patterns = [
+                new RegExp(`\\b${depFuncName}\\s*\\(`, 'g'), // Direct call: funcName(
+                new RegExp(`\\.${depFuncName}\\b`, 'g'), // Method call: .funcName
+                new RegExp(`\\(${depFuncName}\\)`, 'g'), // Passed as argument: (funcName)
+                new RegExp(`\\b${depFuncName}\\b(?=\\s*[,\\)])`, 'g'), // In argument list: funcName, or funcName)
+              ];
+
+              const isUsed = patterns.some((pattern) => pattern.test(funcStr));
+              if (isUsed) {
+                if (!usedFunctions.has(depFuncName)) {
+                  usedFunctions.add(depFuncName);
+                  toCheck.add(depFuncName);
+                }
+              }
+            }
+          });
+        });
+        break;
+      }
+    }
+  }
+
+  return usedFunctions;
+}
+
+/**
+ * Build injection code for required utility functions
+ * @param {Set} usedFunctions - Set of function names to inject
+ * @param {object} utilities - Available utility modules
+ * @returns {string} JavaScript code to inject
+ */
+function buildUtilityInjection(usedFunctions, utilities) {
+  if (usedFunctions.size === 0) {
+    return '';
+  }
+
+  let injection = `
+// ============================================================================
+// INJECTED UTILITY FUNCTIONS - Added during build from resolvers-src/utils/
+// ============================================================================
+`;
+
+  // Group functions by module for better organization
+  const functionsByModule = {};
+
+  usedFunctions.forEach((funcName) => {
+    // Find which module contains this function
+    for (const [moduleName, module] of Object.entries(utilities)) {
+      if (module[funcName]) {
+        if (!functionsByModule[moduleName]) {
+          functionsByModule[moduleName] = [];
+        }
+        functionsByModule[moduleName].push(funcName);
+        break;
+      }
+    }
+  });
+
+  // Add functions grouped by module
+  Object.entries(functionsByModule).forEach(([moduleName, functions]) => {
+    injection += `\n// From ${moduleName}.js\n`;
+
+    functions.forEach((funcName) => {
+      const func = utilities[moduleName][funcName];
+      if (func) {
+        // Convert function to string and ensure it has proper declaration
+        let funcStr = func.toString();
+
+        // If it's an arrow function without a name, add const declaration
+        if (funcStr.startsWith('(') || funcStr.startsWith('async (')) {
+          funcStr = `const ${funcName} = ${funcStr};`;
+        }
+        // If it's a regular function expression, ensure it has const
+        else if (!funcStr.startsWith('function') && !funcStr.startsWith('async function')) {
+          funcStr = `const ${funcName} = ${funcStr};`;
+        }
+
+        injection += funcStr + '\n\n';
+      }
+    });
+  });
+
+  return injection;
+}
+
+/**
+ * Process resolver files to inject facet mappings and utilities
+ * This creates processed versions with the mappings and utilities injected
  */
 function processResolversWithMappings() {
   const resolversDir = path.join(__dirname, '..', 'resolvers-src');
-  const processedDir = path.join(__dirname, '..', 'resolvers');
+  const processedDir = path.join(__dirname, '..', 'build', 'resolvers');
 
-  // Create processed directory if it doesn't exist
+  // Create build directory structure if it doesn't exist
+  const buildDir = path.join(__dirname, '..', 'build');
+  if (!fs.existsSync(buildDir)) {
+    fs.mkdirSync(buildDir);
+  }
   if (!fs.existsSync(processedDir)) {
     fs.mkdirSync(processedDir);
   }
@@ -110,7 +281,10 @@ function processResolversWithMappings() {
     console.log(format.warning('No facet-mappings.json found, proceeding without URL mappings'));
   }
 
-  // Inject mappings into each resolver (excluding template and utility files)
+  // Load utility modules
+  const utilities = loadUtilityModules();
+
+  // Inject mappings and utilities into each resolver (excluding template and utility files)
   const resolverFiles = fs
     .readdirSync(resolversDir)
     .filter(
@@ -123,7 +297,13 @@ function processResolversWithMappings() {
 
     let content = fs.readFileSync(originalPath, 'utf8');
 
-    // Inject the facet mappings at the beginning of the file
+    // Detect which utility functions are used
+    const usedFunctions = detectUsedFunctions(content, utilities);
+
+    // Build utility injection code
+    const utilityInjection = buildUtilityInjection(usedFunctions, utilities);
+
+    // Build the complete injection with facet mappings and utilities
     const injection = `
 // ============================================================================
 // INJECTED FACET MAPPINGS - Added during build from config/facet-mappings.json
@@ -176,6 +356,7 @@ const urlKeyToAttributeCode = (urlKey) => {
   return urlKey.replace(/-/g, '_');
 };
 
+${utilityInjection}
 // ============================================================================
 // ORIGINAL RESOLVER CODE BELOW
 // ============================================================================
@@ -190,7 +371,7 @@ const urlKeyToAttributeCode = (urlKey) => {
     .readdirSync(processedDir)
     .filter((file) => file.endsWith('.js') && !file.includes('template') && !file.includes('utils'))
     .sort()
-    .map((file) => `./resolvers/${file}`);
+    .map((file) => `./build/resolvers/${file}`);
 }
 
 /**
@@ -203,9 +384,9 @@ function getMeshSourceHash() {
       'schema/product-cards.graphql',
       'schema/search-suggestions.graphql',
       'schema/extensions.graphql',
-      'resolvers/product-cards.js',
-      'resolvers/search-suggestions.js',
-      'resolvers/field-extensions.js',
+      'build/resolvers/product-cards.js',
+      'build/resolvers/search-suggestions.js',
+      'build/resolvers/field-extensions.js',
     ];
 
     let combinedContent = '';
