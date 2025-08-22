@@ -1,120 +1,11 @@
 /**
- * CITISIGNAL SEARCH SUGGESTIONS - CUSTOM AUTOCOMPLETE API
- *
- * This resolver demonstrates creating a simple, fast autocomplete API
- * that transforms complex product data into lightweight suggestions.
- *
- * What Adobe gives us: Full product objects with nested data
- * What we deliver: Minimal, fast suggestions perfect for autocomplete
+ * Search Suggestions Resolver
+ * Provides lightweight autocomplete suggestions using Live Search AI
+ * for typo tolerance and semantic understanding.
  */
 
-// ============================================================================
-// CUSTOM QUERY DEFINITION - The autocomplete API we're creating
-// ============================================================================
-
-/**
- * Our Custom Query: Citisignal_searchSuggestions
- *
- * INPUT:
- *   query {
- *     Citisignal_searchSuggestions(
- *       phrase: "ipho"    // Partial search term
- *     )
- *   }
- *
- * OUTPUT - Our lightweight suggestion format:
- *   {
- *     suggestions: [{
- *       // Minimal data for fast autocomplete
- *       sku: "IP15-PRO"
- *       name: "iPhone 15 Pro"
- *       price: "$999.99"           // Formatted for display
- *       image: "https://..."        // Thumbnail URL, HTTPS ensured
- *       inStock: true              // Show availability
- *     }]
- *   }
- *
- * Performance: Returns top 5 most relevant products
- * Powered by: Adobe Live Search AI for better relevance
- */
-
-// ============================================================================
-// SERVICE SELECTION - Why Live Search for suggestions
-// ============================================================================
-
-/**
- * Why we use Live Search for autocomplete:
- * - AI-powered relevance ranking
- * - Typo tolerance ("iphon" finds "iPhone")
- * - Semantic understanding ("smartphone" finds phones)
- * - Fast response times
- *
- * Catalog Service doesn't have autocomplete-specific features
- */
-
-// ============================================================================
-// DATA TRANSFORMATION - Complex to minimal
-// ============================================================================
-
-/**
- * Transform complex product data to lightweight suggestions
- *
- * ADOBE'S LIVE SEARCH RESPONSE:
- * {
- *   items: [{
- *     product: {
- *       sku: "IP15-PRO",
- *       name: "iPhone 15 Pro",
- *       small_image: { url: "http://..." }
- *     },
- *     productView: {
- *       sku: "IP15-PRO",
- *       inStock: true,
- *       price: {
- *         final: { amount: { value: 999.99 } }
- *       },
- *       images: [{ url: "//domain.com/image.jpg" }]
- *     }
- *   }]
- * }
- *
- * OUR LIGHTWEIGHT SUGGESTION:
- * {
- *   sku: "IP15-PRO",
- *   name: "iPhone 15 Pro",
- *   price: "$999.99",      // Formatted
- *   image: "https://...",  // HTTPS ensured
- *   inStock: true
- * }
- */
-
-/**
- * Ensure URLs use HTTPS for security
- */
-const ensureHttpsUrl = (url) => {
-  if (!url || typeof url !== 'string') return url;
-
-  // Handle protocol-relative URLs (//domain.com)
-  if (url.startsWith('//')) {
-    return 'https:' + url;
-  }
-
-  // Convert HTTP to HTTPS
-  return url.replace(/^http:\/\//, 'https://');
-};
-
-/**
- * Format price for display in suggestions
- */
-const formatPrice = (amount) => {
-  // Always return a string for non-nullable price field
-  if (!amount && amount !== 0) return '$0.00';
-  return `$${amount.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`;
-};
-
-/**
- * Transform product to minimal suggestion format
- */
+// Transform product to minimal suggestion format
+// Uses injected utilities: formatPrice, ensureHttpsUrl
 const transformToSuggestion = (item) => {
   if (!item) return null;
 
@@ -154,10 +45,6 @@ const transformToSuggestion = (item) => {
     image,
   };
 };
-
-// ============================================================================
-// QUERY EXECUTION - Get suggestions from Live Search
-// ============================================================================
 
 const SUGGESTIONS_LIMIT = 5; // Keep autocomplete fast and focused
 
@@ -214,10 +101,6 @@ const executeSearchSuggestions = async (context, args) => {
 
   return suggestions;
 };
-
-// ============================================================================
-// MAIN RESOLVER - Simple and focused
-// ============================================================================
 
 module.exports = {
   resolvers: {

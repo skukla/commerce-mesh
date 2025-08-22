@@ -1,50 +1,7 @@
 /**
- * CITISIGNAL BREADCRUMBS - CUSTOM BREADCRUMB API
- *
- * This resolver demonstrates transforming Adobe Commerce's category hierarchy
- * into clean breadcrumb trails for SEO and navigation.
- *
- * What Adobe gives us: Category hierarchy with parent relationships
- * What we deliver: Clean breadcrumb trail ready for UI components
+ * Category Breadcrumbs Resolver
+ * Builds breadcrumb trails from Commerce category hierarchy for navigation.
  */
-
-// ============================================================================
-// CUSTOM QUERY DEFINITION - The breadcrumb API we're creating
-// ============================================================================
-
-/**
- * Our Custom Query: Citisignal_categoryBreadcrumbs
- *
- * INPUT:
- *   query {
- *     Citisignal_categoryBreadcrumbs(
- *       categoryUrlKey: "phones"    // Category URL key to get breadcrumbs for
- *     )
- *   }
- *
- * OUTPUT - Our breadcrumb trail:
- *   {
- *     breadcrumbs: [{
- *       // Clean breadcrumb items
- *       name: "Home"
- *       href: "/"
- *       isActive: false
- *     }, {
- *       name: "Electronics"
- *       href: "/electronics"
- *       isActive: false
- *     }, {
- *       name: "Phones"
- *       href: "/phones"
- *       isActive: true        // Current page
- *     }]
- *   }
- *
- */
-
-// ============================================================================
-// DATA TRANSFORMATION - Build breadcrumb trail
-// ============================================================================
 
 /**
  * Transform Adobe's category breadcrumb to clean format

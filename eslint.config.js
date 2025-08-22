@@ -25,7 +25,7 @@ module.exports = [
   },
   {
     // Special globals for resolver files that will be injected at build time
-    files: ['build/resolvers/**/*.js', 'resolvers-src/utils/**/*.js'],
+    files: ['build/resolvers/**/*.js', 'resolvers-src/**/*.js'],
     languageOptions: {
       globals: {
         FACET_MAPPINGS: 'readonly',
@@ -35,9 +35,20 @@ module.exports = [
         findAttributeValue: 'readonly',
         isOnSale: 'readonly',
         calculateDiscountPercent: 'readonly',
+        calculateDiscountPercentage: 'readonly',
         extractVariantOptions: 'readonly',
         ensureHttpsUrl: 'readonly',
         formatPrice: 'readonly',
+        transformProductToCard: 'readonly',
+        transformCategory: 'readonly',
+        filterForNavigation: 'readonly',
+        buildHeaderNav: 'readonly',
+        buildFooterNav: 'readonly',
+        buildBreadcrumbs: 'readonly',
+        buildPageFilters: 'readonly',
+        buildCatalogFilters: 'readonly',
+        buildLiveSearchFilters: 'readonly',
+        transformFacets: 'readonly',
       },
     },
   },

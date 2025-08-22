@@ -1,152 +1,15 @@
 /**
- * CITISIGNAL CATEGORY NAVIGATION - CUSTOM NAVIGATION API
- *
- * This resolver demonstrates transforming Adobe Commerce's complex category tree
- * into clean, navigation-ready data structures for headers and footers.
- *
- * What Adobe gives us: Deeply nested category hierarchy with technical fields
- * What we deliver: Clean navigation items ready for UI menus
+ * Category Navigation Resolver
+ * Transforms Commerce category tree into navigation structures for headers and footers.
  */
 
-// ============================================================================
-// CUSTOM QUERY DEFINITION - The navigation API we're creating
-// ============================================================================
-
-/**
- * Our Custom Query: Citisignal_categoryNavigation
- *
- * INPUT:
- *   query {
- *     Citisignal_categoryNavigation(
- *       type: HEADER       // or FOOTER
- *       maxItems: 6        // Limit items for clean UI
- *     )
- *   }
- *
- * OUTPUT - Our navigation-ready structure:
- *   {
- *     navigation: [{
- *       // Clean navigation item
- *       id: "4"
- *       name: "Phones"
- *       href: "/phones"           // Ready-to-use link
- *       label: "Phones"           // Display text
- *       level: 2                  // For styling nested menus
- *       position: 1               // Display order
- *       children: [{              // Nested navigation
- *         name: "iPhones"
- *         href: "/phones/iphones"
- *       }]
- *     }]
- *   }
- *
- */
-
-// ============================================================================
-// CONFIGURATION - Business rules for navigation
-// ============================================================================
+// Configuration
 
 const DEFAULT_HEADER_NAV_ITEMS = 6; // Keep header clean
 const DEFAULT_FOOTER_NAV_ITEMS = 4; // Smaller footer menu
 
-// ============================================================================
-// DATA TRANSFORMATION - Complex hierarchy to clean navigation
-// ============================================================================
-
-/**
- * Transform Adobe's category structure to navigation items
- *
- * ADOBE'S COMMERCE STRUCTURE:
- * {
- *   uid: "Mg==",
- *   id: 2,
- *   name: "Default Category",
- *   url_path: "default-category",
- *   url_key: "default-category",
- *   include_in_menu: 1,
- *   is_active: true,
- *   level: 1,
- *   position: 0,
- *   product_count: 42,
- *   children: [{
- *     uid: "NA==",
- *     name: "Phones",
- *     url_path: "phones",
- *     include_in_menu: 1,
- *     children: [...]
- *   }]
- * }
- *
- * OUR CLEAN NAVIGATION ITEM:
- * {
- *   id: "4",
- *   name: "Phones",
- *   href: "/phones",        // Built from url_path
- *   label: "Phones",        // Ready for display
- *   level: 2,
- *   position: 1,
- *   children: [...]         // Recursively transformed
- * }
- */
-const transformCategory = (category) => {
-  if (!category) return null;
-
-  // Build navigation-ready fields
-  const href = category.url_path ? `/${category.url_path}` : '/';
-
-  return {
-    // Essential navigation fields
-    id: String(category.id || category.uid),
-    name: category.name || '',
-    href: href, // Ready-to-use link
-    label: category.name || '', // Display text
-
-    // Hierarchy and ordering
-    level: category.level || 0,
-    position: category.position || 0,
-
-    // Metadata for filtering
-    includeInMenu: category.include_in_menu === 1 || category.include_in_menu === true,
-    isActive: category.is_active === true || category.is_active === 1,
-    productCount: category.product_count || 0,
-
-    // Nested navigation (recursive transformation)
-    children: category.children?.map(transformCategory).filter(Boolean) || [],
-
-    // Additional fields for advanced use
-    urlPath: category.url_path || '',
-    urlKey: category.url_key || '',
-    parentId: category.parent_id || null,
-  };
-};
-
-// ============================================================================
-// NAVIGATION FILTERING - Apply business rules
-// ============================================================================
-
-/**
- * Filter categories for navigation display
- * Business rules: Only active, menu-enabled categories
- */
-const filterForNavigation = (categories, maxItems = 10) => {
-  if (!categories || !Array.isArray(categories)) return [];
-
-  return categories
-    .filter(
-      (cat) =>
-        cat.includeInMenu && // Admin marked for menu
-        cat.isActive && // Currently active
-        cat.name && // Has a name to display
-        cat.href // Has a valid URL
-    )
-    .sort((a, b) => a.position - b.position) // Respect admin ordering
-    .slice(0, maxItems) // Limit for clean UI
-    .map((cat) => ({
-      ...cat,
-      // Recursively filter children
-      children: filterForNavigation(cat.children, maxItems),
-    }));
-};
+// transformCategory function is injected at build time
+// filterForNavigation function is injected at build time
 
 /**
  * Get navigation items by type (header vs footer)
@@ -160,10 +23,7 @@ const getNavigationByType = (categories, type, maxItems) => {
   return filterForNavigation(categories, limit);
 };
 
-// ============================================================================
-// QUERY EXECUTION - Get categories from Commerce
-// ============================================================================
-
+// Get categories from Commerce
 const executeCategoryNavigation = async (context, args) => {
   // Query Adobe Commerce for category tree
   const result = await context.CommerceGraphQL.Query.Commerce_categoryList({
@@ -217,10 +77,6 @@ const executeCategoryNavigation = async (context, args) => {
   // Apply navigation type filtering
   return getNavigationByType(transformed, args.type, args.maxItems);
 };
-
-// ============================================================================
-// MAIN RESOLVER - Clean navigation API
-// ============================================================================
 
 module.exports = {
   resolvers: {
