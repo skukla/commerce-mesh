@@ -37,7 +37,7 @@ This document covers the implementation details for product facets (filters) in 
 3. **Build-Time Injection** - Mappings are injected into resolvers at build time:
    - Avoids API Mesh import limitations
    - Creates `resolvers-processed/` directory with injected code
-   - Adds `getUrlKey()` and `getAttributeCode()` helper functions
+   - Adds `attributeCodeToUrlKey()` and `urlKeyToAttributeCode()` helper functions
 
 ### Data Flow
 
@@ -145,7 +145,7 @@ const buildLiveSearchFilters = (filter) => {
   if (filter.facets && typeof filter.facets === 'object') {
     Object.entries(filter.facets).forEach(([urlKey, value]) => {
       // Convert URL key back to Adobe attribute code
-      const attributeCode = getAttributeCode(urlKey);
+      const attributeCode = urlKeyToAttributeCode(urlKey);
 
       if (attributeCode === 'price' && Array.isArray(value)) {
         // Special handling for price ranges

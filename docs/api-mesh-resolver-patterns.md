@@ -7,7 +7,7 @@ All resolvers follow this consistent pattern for maintainability and debugging:
 ```javascript
 /**
  * RESOLVER NAME - PURPOSE
- * 
+ *
  * What Adobe gives us: [Complex structure description]
  * What we deliver: [Simple structure description]
  */
@@ -48,10 +48,10 @@ module.exports = {
             console.error('Resolver error:', error);
             // Return valid empty structure
           }
-        }
-      }
-    }
-  }
+        },
+      },
+    },
+  },
 };
 ```
 
@@ -60,10 +60,16 @@ module.exports = {
 ### Used Across Multiple Resolvers
 
 ```javascript
-// Remove technical prefixes (cs_, attr_)
-const cleanAttributeName = (name) => {
-  if (!name) return '';
-  return name.replace(/^(cs_|attr_)/, '');
+// Note: In the current implementation, this function has been replaced
+// by attributeCodeToUrlKey() which is injected at build time.
+// The example below shows the pattern:
+const attributeCodeToUrlKey = (attributeCode) => {
+  // Check explicit mappings first
+  if (FACET_MAPPINGS.mappings[attributeCode]) {
+    return FACET_MAPPINGS.mappings[attributeCode];
+  }
+  // Apply default transformations
+  return attributeCode.replace(/^(cs_|attr_)/, '').toLowerCase();
 };
 
 // Format prices consistently
@@ -100,9 +106,7 @@ const extractPriceValue = (product, priceType, isComplex) => {
 // Find attribute value by name
 const findAttributeValue = (attributes, name) => {
   if (!attributes || !Array.isArray(attributes)) return null;
-  const attr = attributes.find(a => 
-    a.name === name || a.name === `cs_${name}`
-  );
+  const attr = attributes.find((a) => a.name === name || a.name === `cs_${name}`);
   return attr?.value;
 };
 
@@ -110,21 +114,21 @@ const findAttributeValue = (attributes, name) => {
 const extractVariantOptions = (options) => {
   const variantOptions = {};
   if (!options || !Array.isArray(options)) return variantOptions;
-  
-  options.forEach(option => {
+
+  options.forEach((option) => {
     if (option.id?.startsWith('cs_')) {
-      const cleanName = cleanAttributeName(option.id);
+      const cleanName = attributeCodeToUrlKey(option.id);
       if (cleanName === 'color' && option.values) {
-        variantOptions.colors = option.values.map(v => ({
+        variantOptions.colors = option.values.map((v) => ({
           name: v.title,
-          hex: v.value || '#000000'
+          hex: v.value || '#000000',
         }));
       } else if (option.values) {
-        variantOptions[cleanName] = option.values.map(v => v.title);
+        variantOptions[cleanName] = option.values.map((v) => v.title);
       }
     }
   });
-  
+
   return variantOptions;
 };
 ```
@@ -132,6 +136,7 @@ const extractVariantOptions = (options) => {
 ## Service Query Patterns
 
 ### Live Search (AI-powered search)
+
 ```javascript
 context.LiveSearchSandbox.Query.Search_productSearch({
   root: {},
@@ -139,42 +144,45 @@ context.LiveSearchSandbox.Query.Search_productSearch({
     phrase: searchTerm,
     filter: filters,
     page_size: limit,
-    current_page: page
+    current_page: page,
   },
   context,
-  selectionSet: `{ ... }`
-})
+  selectionSet: `{ ... }`,
+});
 ```
 
 ### Catalog Service (fast category browsing)
+
 ```javascript
 context.CatalogServiceSandbox.Query.Catalog_productSearch({
   root: {},
   args: {
     filter: filters,
     page_size: limit,
-    current_page: page
+    current_page: page,
   },
   context,
-  selectionSet: `{ ... }`
-})
+  selectionSet: `{ ... }`,
+});
 ```
 
 ### Commerce GraphQL (category tree, etc.)
+
 ```javascript
 context.CommerceGraphQL.Query.Commerce_categoryList({
   root: {},
   args: {
-    filters: {}
+    filters: {},
   },
   context,
-  selectionSet: `{ ... }`
-})
+  selectionSet: `{ ... }`,
+});
 ```
 
 ## Response Structure Patterns
 
 ### Product List Response
+
 ```javascript
 return {
   items: products || [],
@@ -184,41 +192,43 @@ return {
   page_info: {
     current_page: currentPage,
     page_size: pageSize,
-    total_pages: totalPages
-  }
+    total_pages: totalPages,
+  },
 };
 ```
 
 ### Facets Response
+
 ```javascript
 return {
-  facets: facets.map(facet => ({
-    key: cleanAttributeName(facet.attribute),
+  facets: facets.map((facet) => ({
+    key: attributeCodeToUrlKey(facet.attribute),
     title: facet.title || cleanAttribute,
     type: facet.type || 'STANDARD',
-    options: facet.buckets.map(bucket => ({
+    options: facet.buckets.map((bucket) => ({
       id: bucket.title,
       name: bucket.title,
-      count: bucket.count || 0
-    }))
+      count: bucket.count || 0,
+    })),
   })),
-  totalCount: total || 0
+  totalCount: total || 0,
 };
 ```
 
 ### Navigation Response
+
 ```javascript
 return {
   items: navigationItems || [],
-  headerNav: items.slice(0, 5).map(cat => ({
+  headerNav: items.slice(0, 5).map((cat) => ({
     href: cat.href,
     label: cat.label,
-    category: cat.urlKey
+    category: cat.urlKey,
   })),
-  footerNav: items.slice(0, 8).map(cat => ({
+  footerNav: items.slice(0, 8).map((cat) => ({
     href: cat.href,
-    label: cat.label
-  }))
+    label: cat.label,
+  })),
 };
 ```
 
@@ -242,6 +252,7 @@ catch (error) {
 ## Testing Pattern
 
 For each resolver:
+
 1. Test with minimal query first
 2. Test with filters/parameters
 3. Test error cases
@@ -249,20 +260,20 @@ For each resolver:
 
 ```bash
 # Minimal test
-query { 
-  Citisignal_resolver { 
-    totalCount 
-  } 
+query {
+  Citisignal_resolver {
+    totalCount
+  }
 }
 
 # Full test
-query { 
-  Citisignal_resolver(param: "value") { 
-    items { 
-      id 
-      name 
+query {
+  Citisignal_resolver(param: "value") {
+    items {
+      id
+      name
     }
     totalCount
-  } 
+  }
 }
 ```

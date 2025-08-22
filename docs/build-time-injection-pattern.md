@@ -129,7 +129,7 @@ const FACET_MAPPINGS = {
   },
 };
 
-const getUrlKey = (attributeCode) => {
+const attributeCodeToUrlKey = (attributeCode) => {
   if (FACET_MAPPINGS.mappings[attributeCode]) {
     return FACET_MAPPINGS.mappings[attributeCode];
   }
