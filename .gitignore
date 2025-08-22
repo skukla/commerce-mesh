@@ -50,3 +50,4 @@ workspace.json
 
 # fnm
 .node-version
+resolvers-processed/
