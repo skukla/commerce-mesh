@@ -91,8 +91,8 @@ function combineSchemaFiles() {
  * This creates processed versions with the mappings injected
  */
 function processResolversWithMappings() {
-  const resolversDir = path.join(__dirname, '..', 'resolvers');
-  const processedDir = path.join(__dirname, '..', 'resolvers-processed');
+  const resolversDir = path.join(__dirname, '..', 'resolvers-src');
+  const processedDir = path.join(__dirname, '..', 'resolvers');
 
   // Create processed directory if it doesn't exist
   if (!fs.existsSync(processedDir)) {
@@ -190,7 +190,7 @@ const urlKeyToAttributeCode = (urlKey) => {
     .readdirSync(processedDir)
     .filter((file) => file.endsWith('.js') && !file.includes('template') && !file.includes('utils'))
     .sort()
-    .map((file) => `./resolvers-processed/${file}`);
+    .map((file) => `./resolvers/${file}`);
 }
 
 /**

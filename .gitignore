@@ -48,9 +48,8 @@ workspace.json
 .mesh-deploy-hash
 .mesh-deploy-hash-prod
 
-# Processed resolvers (generated at build time)
-resolvers-processed/
+# Generated resolvers (created at build time from resolvers-src/)
+resolvers/
 
 # fnm
 .node-version
-resolvers-processed/
