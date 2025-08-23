@@ -37,6 +37,7 @@ Client-Side Updates:
 **File:** `/commerce-mesh/resolvers/category-page.js`
 
 The `Citisignal_categoryPageData` resolver:
+
 - Accepts any category as parameter
 - Orchestrates parallel calls to multiple services
 - Returns complete page data in one response
@@ -50,7 +51,7 @@ The `Citisignal_categoryPageData` resolver:
 // Client-side hook with SWR
 export function useCategoryPageData(variables) {
   return useSWR(key, fetcher, {
-    dedupingInterval: 60000 // Cache for 1 minute
+    dedupingInterval: 60000, // Cache for 1 minute
   });
 }
 
@@ -68,14 +69,14 @@ For SSR pages, use Next.js data fetching:
 // pages/category/[slug].tsx
 export async function getServerSideProps(context) {
   const { slug } = context.params;
-  
+
   // Fetch all data server-side
   const data = await fetchCategoryPageData({
     category: slug,
     pageSize: 24,
     currentPage: 1
   });
-  
+
   return {
     props: {
       initialData: data,
@@ -90,7 +91,7 @@ export default function CategoryPage({ initialData, category }) {
     { category },
     { fallbackData: initialData }
   );
-  
+
   // Render complete page with data
   return <CategoryLayout data={data} />;
 }
@@ -100,12 +101,12 @@ export default function CategoryPage({ initialData, category }) {
 
 ### Performance
 
-| Metric | Traditional | SSR Pattern | Improvement |
-|--------|------------|-------------|-------------|
-| Network Requests | 4+ | 1 | 75% fewer |
-| Total Load Time | ~630ms | ~250ms | 60% faster |
-| Time to First Byte | Variable | Consistent | More predictable |
-| Backend Processing | Sequential | Parallel | Optimal efficiency |
+| Metric             | Traditional | SSR Pattern | Improvement        |
+| ------------------ | ----------- | ----------- | ------------------ |
+| Network Requests   | 4+          | 1           | 75% fewer          |
+| Total Load Time    | ~630ms      | ~250ms      | 60% faster         |
+| Time to First Byte | Variable    | Consistent  | More predictable   |
+| Backend Processing | Sequential  | Parallel    | Optimal efficiency |
 
 ### Developer Experience
 
@@ -124,12 +125,14 @@ export default function CategoryPage({ initialData, category }) {
 ## Trade-offs
 
 ### Pros
+
 ✅ Excellent initial page load performance
 ✅ Perfect for SEO-critical pages
 ✅ Simplified frontend code
 ✅ Demonstrates API Mesh value clearly
 
 ### Cons
+
 ❌ Code duplication in resolvers (mesh limitation)
 ❌ Less granular caching
 ❌ Larger initial payload
@@ -138,6 +141,7 @@ export default function CategoryPage({ initialData, category }) {
 ## When to Use
 
 ### Use SSR Pattern For:
+
 - Category landing pages
 - Product detail pages
 - Homepage
@@ -145,6 +149,7 @@ export default function CategoryPage({ initialData, category }) {
 - High-traffic pages where performance matters
 
 ### Use Individual Queries For:
+
 - Search autocomplete
 - Dynamic filters
 - Infinite scroll
@@ -164,6 +169,7 @@ export default function CategoryPage({ initialData, category }) {
 ### Performance Monitoring
 
 Track these metrics:
+
 - Query response time
 - Cache hit rate
 - Backend service latency
@@ -172,12 +178,14 @@ Track these metrics:
 ## Future Improvements
 
 ### If Adobe Adds Resolver Composition:
+
 - Eliminate code duplication
 - Compose existing resolvers
 - Maintain single source of truth
 - Make pattern viable for all pages
 
 ### Current Workarounds:
+
 - Keep transformation logic minimal
 - Use mesh transforms where possible
 - Document duplicated logic clearly
@@ -186,10 +194,12 @@ Track these metrics:
 ## Example Pages
 
 ### Demo Pages:
+
 - `/demo/ssr-category` - SSR pattern demonstration
 - `/demo/unified-query` - Unified query capabilities
 
 ### Production Pattern:
+
 - Initial load: Unified query (SSR)
 - Filter changes: Individual queries
 - Pagination: Unified query (maintains context)

@@ -17,14 +17,14 @@ const [liveSearchResult, catalogSearchResult] = await Promise.all([
   // Query 1: Get AI-powered ranking from Live Search
   context.LiveSearchSandbox.Query.Search_productSearch({
     args: liveSearchArgs,
-    selectionSet: LIVE_SEARCH_QUERY  // Just SKUs
+    selectionSet: LIVE_SEARCH_QUERY, // Just SKUs
   }),
-  
+
   // Query 2: Get full product details from Catalog
   context.CatalogServiceSandbox.Query.Catalog_productSearch({
     args: catalogArgs,
-    selectionSet: PRODUCT_CARD_QUERY  // Full details
-  })
+    selectionSet: PRODUCT_CARD_QUERY, // Full details
+  }),
 ]);
 
 // Merge: Use Live Search order with Catalog data
@@ -36,6 +36,7 @@ const results = mergeInLiveSearchOrder(orderedSkus, productMap);
 ## Service Selection Logic
 
 ### Product Cards (`product-cards.js`)
+
 ```javascript
 if (args.phrase && args.phrase.trim() !== '') {
   // Hybrid: Live Search ranking + Catalog details
@@ -47,10 +48,11 @@ if (args.phrase && args.phrase.trim() !== '') {
 ```
 
 ### Facets (`product-facets.js`)
+
 ```javascript
 // ALWAYS use Live Search - Catalog has NO facets support
 return liveSearchFacets({
-  page_size: 1  // Optimization - aggregations cover all results
+  page_size: 1, // Optimization - aggregations cover all results
 });
 ```
 

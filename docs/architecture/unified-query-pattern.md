@@ -7,12 +7,14 @@ We've implemented a unified GraphQL query (`Citisignal_productPageData`) that de
 ## The Value Proposition
 
 **Single Query Benefits:**
+
 - Frontend makes ONE GraphQL call instead of 3-4 separate calls
 - Backend services run in parallel (faster than sequential client calls)
 - Simplified frontend code with single loading state
 - Ideal for server-side rendering
 
 **Example Performance Gain:**
+
 - Sequential client calls: 200ms + 150ms + 180ms + 100ms = 630ms total
 - Unified parallel query: ~250ms total
 
@@ -48,18 +50,21 @@ This limitation creates significant code duplication:
 ## Current Implementation
 
 We have both patterns implemented:
+
 - **Individual queries**: Used by actual product pages (flexible, maintainable)
 - **Unified query**: Used by demo page (showcases capability, but duplicates code)
 
 ## Recommendation
 
 **Use individual queries as the primary pattern** for these reasons:
+
 - No code duplication
 - Easier maintenance
 - More flexible caching strategies
 - Components can update independently
 
 **Reserve unified queries for:**
+
 - High-traffic pages where performance gain justifies code duplication
 - Demo/POC scenarios to showcase API Mesh capabilities
 - Server-side rendered pages where single query is critical
