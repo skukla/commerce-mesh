@@ -121,7 +121,8 @@ const queryProductDetailByUrlKey = async (context, urlKey) => {
 };
 
 /**
- * Transform product data to our custom shape
+ * Transform product data to our custom shape using extracted utilities
+ * Clean orchestrator function that delegates business logic to utilities
  */
 const transformProduct = (product, commerceVariants = []) => {
   if (!product) return null;
@@ -129,136 +130,27 @@ const transformProduct = (product, commerceVariants = []) => {
   const productData = product.productView || product;
   const isComplex = productData.__typename === 'Catalog_ComplexProductView';
 
-  // Extract price information
-  const regularPrice = isComplex
-    ? productData.priceRange?.minimum?.regular?.amount?.value
-    : productData.price?.regular?.amount?.value;
-  const finalPrice = isComplex
-    ? productData.priceRange?.minimum?.final?.amount?.value
-    : productData.price?.final?.amount?.value;
-
-  const isOnSale = regularPrice && finalPrice && finalPrice < regularPrice;
-  const discountPercent = isOnSale
-    ? Math.round(((regularPrice - finalPrice) / regularPrice) * 100)
-    : null;
-
-  // Find manufacturer
-  const manufacturer = productData.attributes?.find(
-    (attr) => attr.name === 'manufacturer' || attr.name === 'cs_manufacturer'
-  )?.value;
-
-  // Transform images
-  const images = (productData.images || []).map((image, index) => ({
-    url: ensureHttpsUrl(image.url),
-    altText: image.label || productData.name || '',
-    type: index === 0 ? 'image' : 'thumbnail',
-  }));
-
-  // Transform attributes - use the label provided by Catalog Service
-  const attributes = (productData.attributes || []).map((attr) => ({
-    key: attr.name || '',
-    label: attr.label || attr.name || '',
-    value: attr.value || '',
-    type: 'text',
-  }));
-
-  // Transform configurable options
-  const configurable_options = (productData.options || []).map((option) => ({
-    label: option.title || option.label || '',
-    attribute_code: option.id || '',
-    values: (option.values || []).map((value) => ({
-      label: value.title || value.label || '',
-      value: value.value || '',
-      swatch_data: value.swatch_data
-        ? {
-            type: value.swatch_data.type || 'color',
-            value: value.swatch_data.value || value.value || '',
-          }
-        : null,
-    })),
-  }));
-
-  // Transform variants from Commerce GraphQL
-  const variants = commerceVariants.map((variant) => {
-    const variantProduct = variant.product;
-    const variantRegularPrice = variantProduct?.price_range?.minimum_price?.regular_price?.value;
-    const variantFinalPrice =
-      variantProduct?.price_range?.minimum_price?.final_price?.value || variantRegularPrice;
-
-    // Build attributes object from variant attributes
-    // Need to map Commerce GraphQL labels back to configurable option values (especially for colors)
-    const attributes = {};
-    if (variant.attributes && Array.isArray(variant.attributes)) {
-      variant.attributes.forEach((attr) => {
-        if (attr.code && attr.label) {
-          // For color attributes, map the label back to the hex value
-          if (attr.code === 'cs_color') {
-            // Find the matching configurable option value
-            const colorOption = configurable_options.find(
-              (opt) => opt.attribute_code === 'cs_color'
-            );
-            const colorValue = colorOption?.values.find((val) => val.label === attr.label);
-            attributes[attr.code] = colorValue?.value || attr.label;
-          } else {
-            // For other attributes (like memory), use the label as-is
-            attributes[attr.code] = attr.label;
-          }
-        }
-      });
-    }
-
-    return {
-      id: variantProduct?.sku || '',
-      sku: variantProduct?.sku || '',
-      attributes,
-      price: formatPrice(variantFinalPrice),
-      originalPrice:
-        variantRegularPrice && variantFinalPrice && variantRegularPrice > variantFinalPrice
-          ? formatPrice(variantRegularPrice)
-          : null,
-      inStock: variantProduct?.stock_status === 'IN_STOCK',
-      stockLevel: null, // Not available in Commerce GraphQL
-      image: variantProduct?.image
-        ? {
-            url: ensureHttpsUrl(variantProduct.image.url),
-            altText: variantProduct.image.label || `${variantProduct.sku} variant`,
-          }
-        : null,
-    };
-  });
-
-  // Generate breadcrumbs dynamically based on product family attribute
-  let categoryName = 'Products';
-  let categoryPath = '/products';
-
-  if (attributes && attributes.length > 0) {
-    const productFamily = attributes.find((attr) => attr.key === 'cs_product_family');
-    if (productFamily && productFamily.value) {
-      categoryName = productFamily.value;
-      categoryPath = `/${categoryName.toLowerCase()}`;
-    }
-  }
-
-  const breadcrumbs = {
-    items: [
-      { name: categoryName, urlPath: categoryPath },
-      { name: productData.name || '', urlPath: `/products/${productData.urlKey}` },
-    ],
-  };
+  // Use extracted utilities for business logic
+  const pricing = extractProductPricing(productData, isComplex);
+  const images = transformProductImages(productData.images, productData.name);
+  const attributes = transformProductAttributes(productData.attributes);
+  const configurable_options = transformConfigurableOptions(productData.options);
+  const variants = transformProductVariants(commerceVariants, configurable_options);
+  const breadcrumbs = generateProductBreadcrumbs(attributes, productData);
 
   return {
+    // Basic product fields
     id: productData.id || '',
     sku: productData.sku || '',
     name: productData.name || '',
     urlKey: productData.urlKey || '',
-    price: formatPrice(finalPrice),
-    originalPrice: isOnSale ? formatPrice(regularPrice) : null,
-    discountPercent,
-    inStock: productData.inStock || false,
-    stockLevel: productData.stockLevel || null,
-    manufacturer: manufacturer || null,
     description: productData.description || '',
     shortDescription: productData.shortDescription || '',
+    inStock: productData.inStock || false,
+    stockLevel: productData.stockLevel || null,
+
+    // Transformed business data
+    ...pricing,
     images,
     attributes,
     breadcrumbs,
@@ -267,7 +159,8 @@ const transformProduct = (product, commerceVariants = []) => {
   };
 };
 
-// Note: ensureHttpsUrl and formatPrice are injected by the build system
+// Note: All utility functions (ensureHttpsUrl, formatPrice, extractProductPricing, etc.) 
+// are injected by the build system from resolvers-src/utils/
 
 module.exports = {
   resolvers: {

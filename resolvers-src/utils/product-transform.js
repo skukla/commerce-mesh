@@ -195,6 +195,169 @@ const mergeProducts = (primaryProducts, secondaryProducts, matchKey = 'sku') => 
   });
 };
 
+/**
+ * Extract product pricing information from various product formats
+ * @param {object} productData - Product data from Adobe services
+ * @param {boolean} isComplex - Whether this is a complex/configurable product
+ * @returns {object} Pricing information with formatted values
+ */
+const extractProductPricing = (productData, isComplex) => {
+  // Extract price information
+  const regularPrice = isComplex
+    ? productData.priceRange?.minimum?.regular?.amount?.value
+    : productData.price?.regular?.amount?.value;
+  const finalPrice = isComplex
+    ? productData.priceRange?.minimum?.final?.amount?.value
+    : productData.price?.final?.amount?.value;
+
+  const onSale = isOnSale(regularPrice, finalPrice);
+  const discountPercent = calculateDiscountPercent(regularPrice, finalPrice);
+
+  // Find manufacturer attribute
+  const manufacturer = productData.attributes?.find(
+    (attr) => attr.name === 'manufacturer' || attr.name === 'cs_manufacturer'
+  )?.value;
+
+  return {
+    price: formatPrice(finalPrice),
+    originalPrice: onSale ? formatPrice(regularPrice) : null,
+    discountPercent,
+    manufacturer: manufacturer || null,
+  };
+};
+
+/**
+ * Transform product images with secure URLs and proper structure
+ * @param {array} images - Array of image objects from Adobe services
+ * @param {string} productName - Product name for alt text fallback
+ * @returns {array} Transformed images array
+ */
+const transformProductImages = (images, productName) => {
+  return (images || []).map((image, index) => ({
+    url: ensureHttpsUrl(image.url),
+    altText: image.label || productName || '',
+    type: index === 0 ? 'image' : 'thumbnail',
+  }));
+};
+
+/**
+ * Transform product attributes with proper labels
+ * @param {array} attributes - Array of attribute objects from Adobe services
+ * @returns {array} Transformed attributes array
+ */
+const transformProductAttributes = (attributes) => {
+  return (attributes || []).map((attr) => ({
+    key: attr.name || '',
+    label: attr.label || attr.name || '',
+    value: attr.value || '',
+    type: 'text',
+  }));
+};
+
+/**
+ * Transform configurable options for variant selection
+ * @param {array} options - Array of configurable options from Adobe services
+ * @returns {array} Transformed configurable options
+ */
+const transformConfigurableOptions = (options) => {
+  return (options || []).map((option) => ({
+    label: option.title || option.label || '',
+    attribute_code: option.id || '',
+    values: (option.values || []).map((value) => ({
+      label: value.title || value.label || '',
+      value: value.value || '',
+      swatch_data: value.swatch_data
+        ? {
+            type: value.swatch_data.type || 'color',
+            value: value.swatch_data.value || value.value || '',
+          }
+        : null,
+    })),
+  }));
+};
+
+/**
+ * Transform Commerce GraphQL variants with proper attribute mapping
+ * @param {array} commerceVariants - Variants from Commerce GraphQL
+ * @param {array} configurable_options - Configurable options for attribute mapping
+ * @returns {array} Transformed variants array
+ */
+const transformProductVariants = (commerceVariants, configurable_options) => {
+  return commerceVariants.map((variant) => {
+    const variantProduct = variant.product;
+    const variantRegularPrice = variantProduct?.price_range?.minimum_price?.regular_price?.value;
+    const variantFinalPrice =
+      variantProduct?.price_range?.minimum_price?.final_price?.value || variantRegularPrice;
+
+    // Build attributes object from variant attributes
+    // Map Commerce GraphQL labels back to configurable option values (especially for colors)
+    const attributes = {};
+    if (variant.attributes && Array.isArray(variant.attributes)) {
+      variant.attributes.forEach((attr) => {
+        if (attr.code && attr.label) {
+          // For color attributes, map the label back to the hex value
+          if (attr.code === 'cs_color') {
+            // Find the matching configurable option value
+            const colorOption = configurable_options.find(
+              (opt) => opt.attribute_code === 'cs_color'
+            );
+            const colorValue = colorOption?.values.find((val) => val.label === attr.label);
+            attributes[attr.code] = colorValue?.value || attr.label;
+          } else {
+            // For other attributes (like memory), use the label as-is
+            attributes[attr.code] = attr.label;
+          }
+        }
+      });
+    }
+
+    return {
+      id: variantProduct?.sku || '',
+      sku: variantProduct?.sku || '',
+      attributes,
+      price: formatPrice(variantFinalPrice),
+      originalPrice:
+        variantRegularPrice && variantFinalPrice && variantRegularPrice > variantFinalPrice
+          ? formatPrice(variantRegularPrice)
+          : null,
+      inStock: variantProduct?.stock_status === 'IN_STOCK',
+      stockLevel: null, // Not available in Commerce GraphQL
+      image: variantProduct?.image
+        ? {
+            url: ensureHttpsUrl(variantProduct.image.url),
+            altText: variantProduct.image.label || `${variantProduct.sku} variant`,
+          }
+        : null,
+    };
+  });
+};
+
+/**
+ * Generate dynamic breadcrumbs based on product attributes
+ * @param {array} attributes - Transformed product attributes
+ * @param {object} productData - Product data for fallback values
+ * @returns {object} Breadcrumbs structure
+ */
+const generateProductBreadcrumbs = (attributes, productData) => {
+  let categoryName = 'Products';
+  let categoryPath = '/products';
+
+  if (attributes && attributes.length > 0) {
+    const productFamily = attributes.find((attr) => attr.key === 'cs_product_family');
+    if (productFamily && productFamily.value) {
+      categoryName = productFamily.value;
+      categoryPath = `/${categoryName.toLowerCase()}`;
+    }
+  }
+
+  return {
+    items: [
+      { name: categoryName, urlPath: categoryPath },
+      { name: productData.name || '', urlPath: `/products/${productData.urlKey}` },
+    ],
+  };
+};
+
 // Export for build script to process
 module.exports = {
   transformProductToCard,
@@ -203,4 +366,10 @@ module.exports = {
   transformProductDetail,
   createEmptyProductCard,
   mergeProducts,
+  extractProductPricing,
+  transformProductImages,
+  transformProductAttributes,
+  transformConfigurableOptions,
+  transformProductVariants,
+  generateProductBreadcrumbs,
 };
