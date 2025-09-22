@@ -1,0 +1,89 @@
+# Product Detail Query Schema
+# Minimal implementation for Product Detail Pages
+
+# Product attribute for specifications and features
+type Citisignal_ProductAttribute {
+  key: String!
+  label: String!
+  value: String!
+  type: String
+}
+
+type Citisignal_ProductDetail {
+  # Core product information
+  id: String!
+  sku: String!
+  name: String!
+  urlKey: String!
+  price: String!
+  originalPrice: String
+  discountPercent: Int
+  inStock: Boolean!
+  stockLevel: Int
+  manufacturer: String
+
+  # Enhanced product details
+  description: String
+  shortDescription: String
+
+  # Product images
+  images: [Citisignal_ProductImage!]!
+
+  # Product attributes and specifications
+  attributes: [Citisignal_ProductAttribute!]!
+
+  # Breadcrumbs for navigation
+  breadcrumbs: Citisignal_ProductBreadcrumbs
+
+  # Simple configurable options for variant selection
+  configurable_options: [Citisignal_ConfigurableOption!]!
+
+  # Empty variants array for now (can be enhanced later)
+  variants: [Citisignal_ProductVariant!]!
+}
+
+# Configurable option (like colors, sizes)
+type Citisignal_ConfigurableOption {
+  label: String!
+  attribute_code: String!
+  values: [Citisignal_ConfigurableOptionValue!]!
+}
+
+# Configurable option value
+type Citisignal_ConfigurableOptionValue {
+  label: String!
+  value: String!
+  swatch_data: Citisignal_SwatchData
+}
+
+# Swatch data for color options
+type Citisignal_SwatchData {
+  type: String!
+  value: String!
+}
+
+# Product variant (simplified for now)
+type Citisignal_ProductVariant {
+  id: String!
+  sku: String!
+  attributes: JSON
+  price: String!
+  originalPrice: String
+  inStock: Boolean!
+  image: Citisignal_ProductImage
+}
+
+# Breadcrumb types
+type Citisignal_ProductBreadcrumbs {
+  items: [Citisignal_BreadcrumbItem!]!
+}
+
+type Citisignal_BreadcrumbItem {
+  name: String!
+  urlPath: String!
+}
+
+# Product detail query
+extend type Query {
+  Citisignal_productDetail(urlKey: String!): Citisignal_ProductDetail
+}
