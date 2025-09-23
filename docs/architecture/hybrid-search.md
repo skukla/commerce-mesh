@@ -50,10 +50,14 @@ if (args.phrase && args.phrase.trim() !== '') {
 ### Facets (`product-facets.js`)
 
 ```javascript
-// ALWAYS use Live Search - Catalog has NO facets support
-return liveSearchFacets({
-  page_size: 1, // Optimization - aggregations cover all results
-});
+// Use appropriate service based on context:
+// - Live Search: AI-enhanced facets for search queries
+// - Catalog Service: Fast facets for category browsing
+if (args.phrase && args.phrase.trim() !== '') {
+  return liveSearchFacets(); // AI-enhanced search facets
+} else {
+  return catalogFacets(); // Fast category facets
+}
 ```
 
 ## Performance Metrics

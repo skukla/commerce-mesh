@@ -151,7 +151,7 @@ curl -X POST [endpoint] \
 
 ## Key Learnings
 
-1. **Catalog Service has NO facets support** - Always use Live Search for filters
+1. **Both services support facets** - Catalog Service for browsing, Live Search for AI-enhanced search facets
 2. **Sort field is `attribute` not `name`** - Returns empty results if wrong
 3. **Catalog requires `phrase` parameter** - Even if empty string
 4. **Use `page_size: 1` for facets** - Aggregations cover all results anyway
@@ -171,7 +171,7 @@ Key gotchas:
 - Sort field: `attribute` not `name`
 - Category filter: `categoryPath` vs `categories`
 - Catalog requires `phrase` even if empty
-- Catalog has NO facets support
+- Both services support facets with different strengths
 
 ## Hybrid Search Implementation
 

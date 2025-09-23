@@ -85,15 +85,15 @@ Commerce Mesh is an Adobe API Mesh implementation that provides a unified GraphQ
 
 **Limitations**:
 
-- No facet support
-- Basic text matching only
-- No AI relevance
+- Basic text matching only (no AI)
+- No relevance scoring
+- Limited personalization
 
 **Used For**:
 
 - Category browsing
 - Product details
-- Filter-only queries (no search)
+- Filter/facet queries for category browsing
 
 ### Commerce GraphQL
 

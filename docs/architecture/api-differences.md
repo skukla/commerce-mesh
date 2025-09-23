@@ -67,12 +67,15 @@ filter: [
 
 ## Facets Support
 
-**Critical Discovery:**
+**Corrected Information:**
 
-- ✅ Live Search: Full facets support with buckets structure
-- ❌ Catalog Service: **NO FACETS SUPPORT AT ALL**
+- ✅ Live Search: AI-powered facets with contextual relevance and buckets structure
+- ✅ Catalog Service: **FULL FACETS SUPPORT** with buckets structure
 
-For filter sidebars, you MUST use Live Search regardless of search state.
+Both services support facets, but with different strengths:
+
+- **Catalog Service**: Fast, category-optimized facets for browsing
+- **Live Search**: AI-enhanced, search-context-aware facets for searching
 
 ## Relevance Sorting
 
@@ -89,7 +92,7 @@ When sort is "RELEVANCE" in catalog mode, return `null` - don't try to pass it.
 | **Category filter**     | `categories`           | `categoryPath`          |
 | **Manufacturer field**  | `manufacturer`         | `cs_manufacturer`       |
 | **Requires phrase**     | Optional               | **REQUIRED**            |
-| **Facets support**      | ✅ Full                | ❌ **NONE**             |
+| **Facets support**      | ✅ AI-enhanced         | ✅ **FULL SUPPORT**     |
 | **AI Relevance**        | ✅ Yes                 | ❌ No                   |
 | **ConfigurableProduct** | ❌ Limited             | ✅ Full                 |
 
