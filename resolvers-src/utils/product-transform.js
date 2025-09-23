@@ -19,8 +19,10 @@
 const transformProductToCard = (product) => {
   if (!product) return null;
 
-  // Determine product type
-  const isComplex = product.__typename === 'Catalog_ComplexProductView';
+  // Determine product type (handle both Catalog and Search types)
+  const isComplex =
+    product.__typename === 'Catalog_ComplexProductView' ||
+    product.__typename === 'Search_ComplexProductView';
 
   // Extract prices using price utilities (will be injected)
   const regularPrice = extractPriceValue(product, 'regular', isComplex);

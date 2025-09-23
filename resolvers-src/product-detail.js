@@ -202,7 +202,9 @@ const transformProduct = async (product, commerceVariants = [], context) => {
   if (!product) return null;
 
   const productData = product.productView || product;
-  const isComplex = productData.__typename === 'Catalog_ComplexProductView';
+  const isComplex =
+    productData.__typename === 'Catalog_ComplexProductView' ||
+    productData.__typename === 'Search_ComplexProductView';
 
   // Use extracted utilities for business logic (functions injected by build system)
   const pricing = extractProductPricing(productData, isComplex); // eslint-disable-line no-undef
@@ -259,7 +261,11 @@ module.exports = {
 
             // For configurable products, fetch variants from Commerce GraphQL
             let commerceVariants = [];
-            if (product.__typename === 'Catalog_ComplexProductView' && product.sku) {
+            if (
+              (product.__typename === 'Catalog_ComplexProductView' ||
+                product.__typename === 'Search_ComplexProductView') &&
+              product.sku
+            ) {
               commerceVariants = await queryProductVariants(context, product.sku);
             }
 
