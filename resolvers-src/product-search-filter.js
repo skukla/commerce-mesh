@@ -90,13 +90,13 @@ const executeLiveSearchQuery = async (context, args) => {
           id name sku urlKey inStock
           images(roles: ["small_image"]) { url label }
           attributes { name value }
-          ... on Catalog_SimpleProductView {
+          ... on Search_SimpleProductView {
             price {
               regular { amount { value } }
               final { amount { value } }
             }
           }
-          ... on Catalog_ComplexProductView {
+          ... on Search_ComplexProductView {
             priceRange {
               minimum {
                 regular { amount { value } }
@@ -107,7 +107,7 @@ const executeLiveSearchQuery = async (context, args) => {
               id
               title
               values {
-                ... on Catalog_ProductViewOptionValueSwatch {
+                ... on Search_ProductViewOptionValueSwatch {
                   title
                   value
                 }
