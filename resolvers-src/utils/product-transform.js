@@ -38,6 +38,9 @@ const transformProductToCard = (product) => {
   // Extract variant options (will be injected)
   const variantOptions = extractVariantOptions(product.options);
 
+  // Extract configurable options for smart button logic (will be injected)
+  const configurableOptions = transformConfigurableOptions(product.options);
+
   // Get secure image URL (will be injected)
   const imageUrl = product.images?.[0]?.url;
   const secureImageUrl = ensureHttpsUrl(imageUrl);
@@ -67,6 +70,9 @@ const transformProductToCard = (product) => {
 
     // Dynamic variant options (spread to include memory, colors, etc.)
     ...variantOptions,
+
+    // Configurable options for smart button logic
+    configurable_options: configurableOptions,
   };
 };
 

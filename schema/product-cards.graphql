@@ -15,6 +15,24 @@ type Citisignal_ProductImage {
   altText: String
 }
 
+# Configurable option types for smart product card buttons
+type Citisignal_ConfigurableOptionValue {
+  label: String!
+  value: String!
+  swatch_data: Citisignal_SwatchData
+}
+
+type Citisignal_SwatchData {
+  type: String
+  value: String
+}
+
+type Citisignal_ConfigurableOption {
+  label: String!
+  attribute_code: String!
+  values: [Citisignal_ConfigurableOptionValue]
+}
+
 # Product card type for listing pages
 type Citisignal_ProductCard {
   id: String!
@@ -29,6 +47,7 @@ type Citisignal_ProductCard {
   image: Citisignal_ProductImage
   memory: [String]
   colors: [Citisignal_ColorOption]
+  configurable_options: [Citisignal_ConfigurableOption]
 }
 
 # Page info for pagination
