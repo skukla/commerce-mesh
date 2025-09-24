@@ -144,8 +144,8 @@ const queryBreadcrumbs = async (context, product) => {
 
     return {
       items: [
-        { name: category.name, urlPath: category.url_path },
-        { name: product.name, urlPath: `/products/${product.urlKey}` },
+        { name: category.name, urlPath: `/${category.url_path}` },
+        { name: product.name, urlPath: `/${product.urlKey}` },
       ],
     };
   } catch (error) {
