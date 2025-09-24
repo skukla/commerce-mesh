@@ -38,6 +38,10 @@ const transformProductToCard = (product) => {
   // Extract variant options (will be injected)
   const variantOptions = extractVariantOptions(product.options);
 
+  // Extract minimal configurable options for variant selection
+  const configurableOptions = transformConfigurableOptions(product.options);
+  const isConfigurable = configurableOptions.length > 0;
+
   // Get secure image URL (will be injected)
   const imageUrl = product.images?.[0]?.url;
   const secureImageUrl = ensureHttpsUrl(imageUrl);
@@ -67,6 +71,10 @@ const transformProductToCard = (product) => {
 
     // Dynamic variant options (spread to include memory, colors, etc.)
     ...variantOptions,
+
+    // Configurable options for variant selection on cards
+    configurable_options: configurableOptions,
+    isConfigurable,
   };
 };
 
