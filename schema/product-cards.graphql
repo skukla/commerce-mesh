@@ -40,11 +40,16 @@ type Citisignal_ProductCard {
   urlKey: String!
   name: String!
   manufacturer: String
-  price: String!
-  originalPrice: String
+  price: String! # Display string: "$1,199.99"
+  priceValue: Float! # Raw number: 1199.99
+  originalPrice: String # Display string: "$1,399.99"
+  originalPriceValue: Float # Raw number: 1399.99
   discountPercent: Int
   inStock: Boolean!
-  image: Citisignal_ProductImage
+  # Semantic image fields (abstracted from Adobe Commerce roles)
+  image: Citisignal_ProductImage # Main product image (base role)
+  thumbnail: Citisignal_ProductImage # Cart-optimized image (thumbnail role)
+  gallery: [Citisignal_ProductImage] # Additional images for galleries
   memory: [String]
   colors: [Citisignal_ColorOption]
   configurable_options: [Citisignal_ConfigurableOption]

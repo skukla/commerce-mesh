@@ -15,8 +15,10 @@ type Citisignal_ProductDetail {
   sku: String!
   name: String!
   urlKey: String!
-  price: String!
-  originalPrice: String
+  price: String! # Display string: "$1,199.99"
+  priceValue: Float! # Raw number: 1199.99
+  originalPrice: String # Display string: "$1,399.99"
+  originalPriceValue: Float # Raw number: 1399.99
   discountPercent: Int
   inStock: Boolean!
   stockLevel: Int
@@ -26,7 +28,11 @@ type Citisignal_ProductDetail {
   description: String
   shortDescription: String
 
-  # Product images
+  # Semantic image fields (abstracted from Adobe Commerce roles)
+  image: Citisignal_ProductImage # Main product image (base role)
+  thumbnail: Citisignal_ProductImage # Cart-optimized image (thumbnail role)
+  gallery: [Citisignal_ProductImage] # Additional images for galleries
+  # Product images (legacy support)
   images: [Citisignal_ProductImage!]!
 
   # Product attributes and specifications
@@ -67,8 +73,10 @@ type Citisignal_ProductVariant {
   id: String!
   sku: String!
   attributes: JSON
-  price: String!
-  originalPrice: String
+  price: String! # Display string: "$1,199.99"
+  priceValue: Float! # Raw number: 1199.99
+  originalPrice: String # Display string: "$1,399.99"
+  originalPriceValue: Float # Raw number: 1399.99
   inStock: Boolean!
   image: Citisignal_ProductImage
 }

@@ -41,9 +41,7 @@ const transformProductToCard = (product) => {
   // Extract configurable options for smart button logic (will be injected)
   const configurableOptions = transformConfigurableOptions(product.options);
 
-  // Get secure image URL (will be injected)
-  const imageUrl = product.images?.[0]?.url;
-  const secureImageUrl = ensureHttpsUrl(imageUrl);
+  // Note: Image handling now done by extractSemanticImages utility
 
   // Build the transformed product card
   return {
@@ -55,18 +53,15 @@ const transformProductToCard = (product) => {
 
     // Business fields with transformations
     manufacturer: manufacturer || null,
-    price: formatPrice(finalPrice),
+    price: formatPrice(finalPrice), // Display string: "$1,199.99"
+    priceValue: finalPrice || 0, // Raw number: 1199.99
     originalPrice: onSale ? formatPrice(regularPrice) : null,
+    originalPriceValue: onSale ? regularPrice : null,
     discountPercent,
     inStock: product.inStock !== undefined ? product.inStock : true,
 
-    // Simplified media structure
-    image: imageUrl
-      ? {
-          url: secureImageUrl,
-          altText: product.images[0].label || product.name,
-        }
-      : null,
+    // Semantic image structure - abstracts Adobe Commerce complexity
+    ...extractSemanticImages(product.media_gallery || product.images, product.name),
 
     // Dynamic variant options (spread to include memory, colors, etc.)
     ...variantOptions,
@@ -227,8 +222,10 @@ const extractProductPricing = (productData, isComplex) => {
   )?.value;
 
   return {
-    price: formatPrice(finalPrice),
+    price: formatPrice(finalPrice), // Display string: "$1,199.99"
+    priceValue: finalPrice || 0, // Raw number: 1199.99
     originalPrice: onSale ? formatPrice(regularPrice) : null,
+    originalPriceValue: onSale ? regularPrice : null,
     discountPercent,
     manufacturer: manufacturer || null,
   };
@@ -246,6 +243,60 @@ const transformProductImages = (images, productName) => {
     altText: image.label || productName || '',
     type: index === 0 ? 'image' : 'thumbnail',
   }));
+};
+
+/**
+ * Extract semantic image roles from Adobe Commerce media gallery
+ * Maps Adobe's role-based images to developer-friendly semantic names
+ * @param {array} mediaGallery - Array of media objects with roles from Adobe Commerce
+ * @param {string} productName - Product name for alt text fallback
+ * @returns {object} Semantic image structure { image, thumbnail, gallery }
+ */
+const extractSemanticImages = (mediaGallery, productName) => {
+  if (!mediaGallery || !Array.isArray(mediaGallery)) {
+    return { image: null, thumbnail: null, gallery: [] };
+  }
+
+  // Find images by role - Adobe Commerce uses 'base', 'small', 'thumbnail'
+  const baseImage = mediaGallery.find((img) => img.role === 'base') || mediaGallery[0];
+  const thumbnailImage = mediaGallery.find((img) => img.role === 'thumbnail');
+
+  // Gallery should include all additional images (excluding base and thumbnail)
+  const galleryImages = mediaGallery.filter(
+    (img) => img.role !== 'base' && img.role !== 'thumbnail' && img !== baseImage
+  );
+
+  const createImageObject = (img) => {
+    if (!img) return null;
+    return {
+      url: ensureHttpsUrl(img.url),
+      altText: img.label || productName || '',
+    };
+  };
+
+  return {
+    // Main product image (base role) - for product cards and detail pages
+    image: createImageObject(baseImage),
+    // Cart optimized image (thumbnail role) - smaller, faster loading
+    thumbnail: createImageObject(thumbnailImage),
+    // Gallery images (all additional images) - for image galleries and carousels
+    gallery: galleryImages.map((img) => createImageObject(img)).filter(Boolean),
+  };
+};
+
+/**
+ * Get cart-optimized image URL with intelligent fallback
+ * Prioritizes thumbnail role, falls back to base image for performance
+ * @param {array} mediaGallery - Array of media objects from Adobe Commerce
+ * @param {string} productName - Product name for alt text
+ * @returns {object|null} Cart image object with url and altText
+ */
+const getCartImage = (mediaGallery, productName) => {
+  const semanticImages = extractSemanticImages(mediaGallery, productName);
+
+  // Prefer thumbnail for cart (optimized for small display)
+  // Fall back to main image if thumbnail not available
+  return semanticImages.thumbnail || semanticImages.image;
 };
 
 /**
@@ -323,10 +374,15 @@ const transformProductVariants = (commerceVariants, configurable_options) => {
       id: variantProduct?.sku || '',
       sku: variantProduct?.sku || '',
       attributes,
-      price: formatPrice(variantFinalPrice),
+      price: formatPrice(variantFinalPrice), // Display string
+      priceValue: variantFinalPrice || 0, // Raw number
       originalPrice:
         variantRegularPrice && variantFinalPrice && variantRegularPrice > variantFinalPrice
           ? formatPrice(variantRegularPrice)
+          : null,
+      originalPriceValue:
+        variantRegularPrice && variantFinalPrice && variantRegularPrice > variantFinalPrice
+          ? variantRegularPrice
           : null,
       inStock: variantProduct?.stock_status === 'IN_STOCK',
       stockLevel: null, // Not available in Commerce GraphQL
@@ -376,6 +432,8 @@ module.exports = {
   mergeProducts,
   extractProductPricing,
   transformProductImages,
+  extractSemanticImages,
+  getCartImage,
   transformProductAttributes,
   transformConfigurableOptions,
   transformProductVariants,

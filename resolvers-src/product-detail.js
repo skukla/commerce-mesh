@@ -209,6 +209,10 @@ const transformProduct = async (product, commerceVariants = [], context) => {
   // Use extracted utilities for business logic (functions injected by build system)
   const pricing = extractProductPricing(productData, isComplex); // eslint-disable-line no-undef
   const images = transformProductImages(productData.images, productData.name); // eslint-disable-line no-undef
+  const semanticImages = extractSemanticImages(
+    productData.media_gallery || productData.images,
+    productData.name
+  ); // eslint-disable-line no-undef
   const attributes = transformProductAttributes(productData.attributes); // eslint-disable-line no-undef
   const configurable_options = transformConfigurableOptions(productData.options); // eslint-disable-line no-undef
   const variants = transformProductVariants(commerceVariants, configurable_options); // eslint-disable-line no-undef
@@ -231,6 +235,9 @@ const transformProduct = async (product, commerceVariants = [], context) => {
 
     // Transformed business data
     ...pricing,
+    // Semantic image fields (developer-friendly)
+    ...semanticImages,
+    // Legacy images field (for backward compatibility)
     images,
     attributes,
     breadcrumbs,
