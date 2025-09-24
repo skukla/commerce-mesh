@@ -127,13 +127,13 @@ const executeUnifiedQuery = async (context, args) => {
                 id name sku urlKey inStock
                 images(roles: ["small_image"]) { url label }
                 attributes { name value }
-                ... on Search_SimpleProductView {
+                ... on Catalog_SimpleProductView {
                   price {
                     regular { amount { value } }
                     final { amount { value } }
                   }
                 }
-                ... on Search_ComplexProductView {
+                ... on Catalog_ComplexProductView {
                   priceRange {
                     minimum {
                       regular { amount { value } }
@@ -144,7 +144,7 @@ const executeUnifiedQuery = async (context, args) => {
                     id
                     title
                     values {
-                      ... on Search_ProductViewOptionValueSwatch {
+                      ... on Catalog_ProductViewOptionValueSwatch {
                         title
                         value
                       }

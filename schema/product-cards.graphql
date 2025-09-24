@@ -26,8 +26,8 @@ type Citisignal_ProductCard {
   originalPrice: String
   discountPercent: Int
   inStock: Boolean!
-  image: Citisignal_ProductImage     
-  memory: [String]   
+  image: Citisignal_ProductImage
+  memory: [String]
   colors: [Citisignal_ColorOption]
 }
 
@@ -45,12 +45,12 @@ type Citisignal_ProductCardResult {
   hasMoreItems: Boolean!
   currentPage: Int
   page_info: Citisignal_PageInfo
-  _debug: String  # Debug information when requested
+  _debug: String # Debug information when requested
 }
 
 # Filter input for product searches (includes category for standalone queries)
 input Citisignal_ProductFilter {
-  categoryUrlKey: String  # Category URL key like "phones" or "accessories"
+  categoryUrlKey: String # Category URL key like "phones" or "accessories"
   # Dynamic facets as JSON object - accepts any attribute codes from Adobe
   # Example: {"cs_manufacturer": ["Apple"], "custom_field": ["value"]}
   facets: JSON
@@ -58,7 +58,7 @@ input Citisignal_ProductFilter {
   manufacturer: String
   memory: [String]
   color: [String]
-  price: [String]        # Price ranges like ["300.0-400.0"]
+  price: [String] # Price ranges like ["300.0-400.0"]
   onSaleOnly: Boolean
 }
 
@@ -71,7 +71,7 @@ input Citisignal_PageFilter {
   manufacturer: String
   memory: [String]
   color: [String]
-  price: [String]        # Price ranges like ["300.0-400.0"]
+  price: [String] # Price ranges like ["300.0-400.0"]
   onSaleOnly: Boolean
 }
 
@@ -83,9 +83,9 @@ enum Citisignal_SortDirection {
 
 # Sort attribute enum for product listings
 enum Citisignal_ProductSortAttribute {
-  RELEVANCE     # Default for search results
-  PRICE         # Sort by price
-  NAME          # Sort by product name
+  RELEVANCE # Default for search results
+  PRICE # Sort by price
+  NAME # Sort by product name
 }
 
 # Sort options
