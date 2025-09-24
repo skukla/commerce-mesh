@@ -1,0 +1,77 @@
+# Cart Operations Schema
+# Abstracts Adobe Commerce cart complexity into developer-friendly shapes
+# Follows same semantic patterns as product schemas
+
+# Semantic cart types (following your image/pricing patterns)
+type Citisignal_Cart {
+  id: String!
+  itemCount: Int!
+  totalValue: Float! # Raw number for calculations
+  totalDisplay: String! # Formatted: "$1,234.56"
+  items: [Citisignal_CartItem!]!
+  isEmpty: Boolean! # Calculated business field (like hasMoreItems)
+}
+
+type Citisignal_CartItem {
+  id: String!
+  productId: String!
+  sku: String!
+  name: String!
+  quantity: Int!
+
+  # Dual pricing (matching your product pattern)
+  priceValue: Float! # Raw: 1199.99
+  priceDisplay: String! # Formatted: "$1,199.99"
+  totalValue: Float! # quantity * priceValue
+  totalDisplay: String! # Formatted total
+  # Semantic image (following your pattern)
+  image: Citisignal_ProductImage
+
+  # Configuration details (for variants)
+  selectedOptions: [Citisignal_CartItemOption!]
+  variantDisplay: String # "Purple, 256GB"
+}
+
+type Citisignal_CartItemOption {
+  label: String!
+  value: String!
+  attributeCode: String!
+}
+
+# Input types for mutations
+input Citisignal_AddToCartInput {
+  productId: String!
+  sku: String!
+  quantity: Int! = 1
+  selectedOptions: [Citisignal_CartItemOptionInput!]
+}
+
+input Citisignal_CartItemOptionInput {
+  attributeCode: String!
+  value: String!
+}
+
+input Citisignal_UpdateCartItemInput {
+  cartItemId: String!
+  quantity: Int!
+}
+
+# Cart operation results (following your error handling pattern)
+type Citisignal_CartOperationResult {
+  success: Boolean!
+  cart: Citisignal_Cart
+  errors: [String!]
+}
+
+# Cart mutations (semantic, developer-friendly)
+extend type Mutation {
+  Citisignal_addToCart(input: Citisignal_AddToCartInput!): Citisignal_CartOperationResult!
+  Citisignal_updateCartItem(input: Citisignal_UpdateCartItemInput!): Citisignal_CartOperationResult!
+  Citisignal_removeFromCart(cartItemId: String!): Citisignal_CartOperationResult!
+  Citisignal_clearCart: Citisignal_CartOperationResult!
+}
+
+# Cart query (simple, clean API)
+extend type Query {
+  Citisignal_cart: Citisignal_Cart
+}
