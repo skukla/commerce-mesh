@@ -15,24 +15,6 @@ type Citisignal_ProductImage {
   altText: String
 }
 
-# Minimal configurable option data for cards (subset of full product detail)
-type Citisignal_ConfigurableOptionValue {
-  label: String!
-  value: String!
-  swatch_data: Citisignal_SwatchData
-}
-
-type Citisignal_SwatchData {
-  type: String  # "1" for color, "2" for image, "0" for text
-  value: String # Hex color, image URL, or text value
-}
-
-type Citisignal_ConfigurableOption {
-  label: String!
-  attribute_code: String!
-  values: [Citisignal_ConfigurableOptionValue!]!
-}
-
 # Product card type for listing pages
 type Citisignal_ProductCard {
   id: String!
@@ -47,10 +29,6 @@ type Citisignal_ProductCard {
   image: Citisignal_ProductImage     
   memory: [String]   
   colors: [Citisignal_ColorOption]
-  # Minimal configurable options for variant selection on cards
-  configurable_options: [Citisignal_ConfigurableOption!]
-  # Indicates if this product requires variant selection
-  isConfigurable: Boolean!
 }
 
 # Page info for pagination
