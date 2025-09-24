@@ -376,29 +376,71 @@ ${utilityInjection}
 
 /**
  * Get hash of source files to detect changes
+ * Dynamically discovers all files like the build process does
  */
 function getMeshSourceHash() {
   try {
-    const sourceFiles = [
-      'mesh.config.js',
-      'schema/product-cards.graphql',
-      'schema/search-suggestions.graphql',
-      'schema/extensions.graphql',
-      'build/resolvers/product-cards.js',
-      'build/resolvers/search-suggestions.js',
-      'build/resolvers/field-extensions.js',
-    ];
-
     let combinedContent = '';
-    for (const file of sourceFiles) {
-      const filePath = path.join(__dirname, '..', file);
-      if (fs.existsSync(filePath)) {
+
+    // 1. Include mesh config
+    const meshConfigPath = path.join(__dirname, '..', 'mesh.config.js');
+    if (fs.existsSync(meshConfigPath)) {
+      combinedContent += fs.readFileSync(meshConfigPath, 'utf8');
+    }
+
+    // 2. Include all schema files (matches combineSchemaFiles logic)
+    const schemaDir = path.join(__dirname, '..', 'schema');
+    if (fs.existsSync(schemaDir)) {
+      const schemaFiles = fs
+        .readdirSync(schemaDir)
+        .filter((file) => file.endsWith('.graphql'))
+        .sort();
+
+      for (const file of schemaFiles) {
+        const filePath = path.join(schemaDir, file);
         combinedContent += fs.readFileSync(filePath, 'utf8');
       }
     }
 
+    // 3. Include all resolver source files (matches processResolversWithMappings logic)
+    const resolversDir = path.join(__dirname, '..', 'resolvers-src');
+    if (fs.existsSync(resolversDir)) {
+      const resolverFiles = fs
+        .readdirSync(resolversDir)
+        .filter(
+          (file) => file.endsWith('.js') && !file.includes('template') && !file.includes('utils')
+        )
+        .sort();
+
+      for (const file of resolverFiles) {
+        const filePath = path.join(resolversDir, file);
+        combinedContent += fs.readFileSync(filePath, 'utf8');
+      }
+    }
+
+    // 4. Include all utility files (matches loadUtilityModules logic)
+    const utilsDir = path.join(__dirname, '..', 'resolvers-src', 'utils');
+    if (fs.existsSync(utilsDir)) {
+      const utilFiles = fs
+        .readdirSync(utilsDir)
+        .filter((file) => file.endsWith('.js') && !file.includes('facet-mapper'))
+        .sort();
+
+      for (const file of utilFiles) {
+        const filePath = path.join(utilsDir, file);
+        combinedContent += fs.readFileSync(filePath, 'utf8');
+      }
+    }
+
+    // 5. Include facet mappings
+    const mappingsPath = path.join(__dirname, '..', 'config', 'facet-mappings.json');
+    if (fs.existsSync(mappingsPath)) {
+      combinedContent += fs.readFileSync(mappingsPath, 'utf8');
+    }
+
     return crypto.createHash('md5').update(combinedContent).digest('hex');
-  } catch {
+  } catch (error) {
+    console.warn('Hash calculation failed:', error.message);
     return null;
   }
 }

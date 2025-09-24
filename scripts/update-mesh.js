@@ -81,15 +81,21 @@ function isProdEnvironment(args) {
 }
 
 /**
- * Get hash of source files (schemas and resolvers) to detect changes
+ * Get hash of source files (schemas, resolvers, and config) to detect changes
  * Does NOT include mesh.json since that gets rebuilt
  */
 function getSourceFilesHash() {
   try {
     const resolversDir = path.join(__dirname, '..', 'build', 'resolvers');
     const schemasDir = path.join(__dirname, '..', 'schema');
+    const meshConfigPath = path.join(__dirname, '..', 'mesh.config.js');
 
     let combinedContent = '';
+
+    // Include mesh config - changes to this ALWAYS require deployment
+    if (fs.existsSync(meshConfigPath)) {
+      combinedContent += fs.readFileSync(meshConfigPath, 'utf8');
+    }
 
     // Include all resolver files
     if (fs.existsSync(resolversDir)) {
