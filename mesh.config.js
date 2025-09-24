@@ -99,8 +99,8 @@ module.exports = {
         filterSchema: {
           mode: 'bare',
           filters: [
-            'Type.!Mutation',
             'Query.{Citisignal_*, Catalog_productSearch, Search_productSearch, Commerce_categoryList}',
+            'Mutation.{Citisignal_*}',
           ],
         },
       },
