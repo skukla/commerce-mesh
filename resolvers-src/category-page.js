@@ -4,16 +4,35 @@
  * Fetches navigation, products, facets, and breadcrumbs in parallel for optimal performance.
  */
 
-// Execute all queries in parallel for maximum performance
-const executeUnifiedQuery = async (context, args) => {
-  const catalogFilters = buildPageFilters(args.categoryUrlKey, args.filter, 'catalog');
-  const searchFilters = buildPageFilters(args.categoryUrlKey, args.filter, 'search');
-  const useSearch = args.phrase && args.phrase.trim() !== '';
+// ============================================================================
+// REQUEST-LEVEL CACHING - Using context.state to reduce duplicate API calls
+// ============================================================================
 
-  // Start ALL queries simultaneously
-  const promises = [
-    // 1. Navigation (Commerce Core)
-    context.CommerceGraphQL.Query.Commerce_categoryList({
+/**
+ * Initialize request-level caches in context.state
+ * Caches persist for the duration of a single GraphQL request
+ */
+const initializeCache = (context) => {
+  if (!context.state) {
+    context.state = {};
+  }
+  if (!context.state.categories) {
+    context.state.categories = {};
+  }
+  if (!context.state.allCategories) {
+    context.state.allCategories = null;
+  }
+};
+
+/**
+ * Get all categories with caching
+ * Fetches once per request, reuses for navigation and breadcrumbs
+ */
+const getCachedCategoriesList = async (context) => {
+  initializeCache(context);
+
+  if (!context.state.allCategories) {
+    context.state.allCategories = await context.CommerceGraphQL.Query.Commerce_categoryList({
       root: {},
       args: { filters: {} },
       context,
@@ -54,7 +73,52 @@ const executeUnifiedQuery = async (context, args) => {
           }
         }
       }`,
-    }),
+    });
+  }
+
+  return context.state.allCategories;
+};
+
+/**
+ * Get specific category by URL key with caching
+ * Fetches once per category per request
+ */
+const getCachedCategory = async (context, urlKey) => {
+  if (!urlKey) return null;
+
+  initializeCache(context);
+
+  if (!context.state.categories[urlKey]) {
+    const result = await context.CommerceGraphQL.Query.Commerce_categoryList({
+      root: {},
+      args: {
+        filters: { url_key: { eq: urlKey } },
+      },
+      context,
+      selectionSet: `{
+        id name url_path description
+        breadcrumbs {
+          category_name
+          category_url_path
+        }
+      }`,
+    });
+    context.state.categories[urlKey] = result?.[0] || null;
+  }
+
+  return context.state.categories[urlKey];
+};
+
+// Execute all queries in parallel for maximum performance
+const executeUnifiedQuery = async (context, args) => {
+  const catalogFilters = buildPageFilters(args.categoryUrlKey, args.filter, 'catalog');
+  const searchFilters = buildPageFilters(args.categoryUrlKey, args.filter, 'search');
+  const useSearch = args.phrase && args.phrase.trim() !== '';
+
+  // Start ALL queries simultaneously
+  const promises = [
+    // 1. Navigation (Commerce Core) - use cached version
+    getCachedCategoriesList(context),
 
     // 2. Products (Catalog or Live Search based on context)
     useSearch
@@ -166,24 +230,9 @@ const executeUnifiedQuery = async (context, args) => {
         }),
   ];
 
-  // Add category-specific query if needed
+  // Add category-specific query if needed - use cached version
   if (args.categoryUrlKey) {
-    promises.push(
-      context.CommerceGraphQL.Query.Commerce_categoryList({
-        root: {},
-        args: {
-          filters: { url_key: { eq: args.categoryUrlKey } },
-        },
-        context,
-        selectionSet: `{
-          id name url_path description
-          breadcrumbs {
-            category_name
-            category_url_path
-          }
-        }`,
-      })
-    );
+    promises.push(getCachedCategory(context, args.categoryUrlKey));
   }
 
   // Execute all queries in parallel
@@ -192,7 +241,7 @@ const executeUnifiedQuery = async (context, args) => {
   return {
     navigation: results[0],
     products: results[1],
-    category: results[2]?.[0] || null,
+    category: results[2] || null, // getCachedCategory returns object directly, not array
   };
 };
 
