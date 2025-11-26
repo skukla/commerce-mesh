@@ -107,7 +107,7 @@ module.exports = {
               footerNav: footerNav || [],
             };
           } catch (error) {
-            console.error('Category navigation resolver error:', error);
+            context.logger.error(`Category nav error: ${error.message?.substring(0, 63)}`);
             // Return empty navigation on error (graceful degradation)
             return {
               items: [],

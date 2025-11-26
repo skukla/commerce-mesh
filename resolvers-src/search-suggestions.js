@@ -117,7 +117,7 @@ module.exports = {
               suggestions: suggestions || [],
             };
           } catch (error) {
-            console.error('Search suggestions resolver error:', error);
+            context.logger.error(`Search suggest error: ${error.message?.substring(0, 59)}`);
             // Return empty suggestions on error (graceful degradation)
             return { suggestions: [] };
           }

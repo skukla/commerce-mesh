@@ -256,7 +256,7 @@ module.exports = {
               },
             };
           } catch (error) {
-            console.error('Product cards resolver error:', error);
+            context.logger.error(`Product cards error: ${error.message?.substring(0, 60)}`);
             throw error;
           }
         },

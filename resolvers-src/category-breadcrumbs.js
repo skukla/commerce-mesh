@@ -125,7 +125,7 @@ const executeCategoryBreadcrumbs = async (context, args) => {
     // Build and return breadcrumb trail
     return buildBreadcrumbTrail(category);
   } catch (error) {
-    console.error('Error fetching category breadcrumbs:', error);
+    context.logger.error(`Fetch breadcrumbs error: ${error.message?.substring(0, 58)}`);
     return [];
   }
 };
@@ -149,7 +149,7 @@ module.exports = {
               items: breadcrumbs || [],
             };
           } catch (error) {
-            console.error('Category breadcrumbs resolver error:', error);
+            context.logger.error(`Breadcrumbs error: ${error.message?.substring(0, 63)}`);
             // Return empty breadcrumbs on error (graceful degradation)
             return { items: [] };
           }

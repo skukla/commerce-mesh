@@ -48,7 +48,7 @@ const queryProductVariants = async (context, sku) => {
 
     return result?.items?.[0]?.variants || [];
   } catch (error) {
-    console.warn('Failed to fetch variants from Commerce GraphQL:', error.message);
+    context.logger.warn(`Fetch variants failed: ${error.message?.substring(0, 65)}`);
     return [];
   }
 };
@@ -149,7 +149,7 @@ const queryBreadcrumbs = async (context, product) => {
       ],
     };
   } catch (error) {
-    console.warn('Failed to fetch breadcrumbs from Commerce GraphQL:', error.message);
+    context.logger.warn(`Fetch breadcrumbs failed: ${error.message?.substring(0, 62)}`);
     // Fallback to attribute-based breadcrumbs - functions will be injected by build system
     const attributes = transformProductAttributes(product.attributes); // eslint-disable-line no-undef
     return generateProductBreadcrumbs(attributes, product); // eslint-disable-line no-undef
@@ -189,7 +189,7 @@ const queryProductCategories = async (context, product) => {
       .filter((cat) => cat.level > 1) // Skip root category
       .sort((a, b) => a.level - b.level); // Sort by hierarchy level
   } catch (error) {
-    console.warn('Failed to fetch categories from Commerce GraphQL:', error.message);
+    context.logger.warn(`Fetch categories failed: ${error.message?.substring(0, 62)}`);
     return [];
   }
 };
@@ -210,9 +210,10 @@ const transformProduct = async (product, commerceVariants = [], context) => {
   const pricing = extractProductPricing(productData, isComplex); // eslint-disable-line no-undef
   const images = transformProductImages(productData.images, productData.name); // eslint-disable-line no-undef
   const semanticImages = extractSemanticImages(
+    // eslint-disable-line no-undef
     productData.media_gallery || productData.images,
     productData.name
-  ); // eslint-disable-line no-undef
+  );
   const attributes = transformProductAttributes(productData.attributes); // eslint-disable-line no-undef
   const configurable_options = transformConfigurableOptions(productData.options); // eslint-disable-line no-undef
   const variants = transformProductVariants(commerceVariants, configurable_options); // eslint-disable-line no-undef
@@ -278,7 +279,7 @@ module.exports = {
 
             return await transformProduct(product, commerceVariants, context);
           } catch (error) {
-            console.error('Product detail resolver error:', error);
+            context.logger.error(`Product detail error: ${error.message?.substring(0, 60)}`);
             throw error;
           }
         },

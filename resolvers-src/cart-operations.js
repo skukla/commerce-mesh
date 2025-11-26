@@ -20,7 +20,7 @@ const ensureCartId = async (context) => {
       });
       return existingCartId;
     } catch (error) {
-      console.warn('Existing cart invalid, creating new one:', error.message);
+      context.logger.warn(`Cart invalid, creating new: ${error.message?.substring(0, 55)}`);
     }
   }
 
@@ -126,7 +126,7 @@ module.exports = {
             const adobeCart = await queryCartDetails(context, cartId);
             return transformCartToSemantic(adobeCart); // eslint-disable-line no-undef
           } catch (error) {
-            console.error('Cart query error:', error);
+            context.logger.error(`Cart query error: ${error.message?.substring(0, 65)}`);
             return null; // Graceful degradation
           }
         },
@@ -190,7 +190,7 @@ module.exports = {
               errors: [],
             };
           } catch (error) {
-            console.error('Add to cart error:', error);
+            context.logger.error(`Add to cart error: ${error.message?.substring(0, 62)}`);
             return {
               success: false,
               cart: null,
@@ -230,7 +230,7 @@ module.exports = {
               errors: [],
             };
           } catch (error) {
-            console.error('Update cart item error:', error);
+            context.logger.error(`Update cart error: ${error.message?.substring(0, 62)}`);
             return {
               success: false,
               cart: null,
@@ -268,7 +268,7 @@ module.exports = {
               errors: [],
             };
           } catch (error) {
-            console.error('Remove from cart error:', error);
+            context.logger.error(`Remove from cart error: ${error.message?.substring(0, 57)}`);
             return {
               success: false,
               cart: null,
@@ -302,7 +302,7 @@ module.exports = {
               errors: [],
             };
           } catch (error) {
-            console.error('Clear cart error:', error);
+            context.logger.error(`Clear cart error: ${error.message?.substring(0, 64)}`);
             return {
               success: false,
               cart: null,

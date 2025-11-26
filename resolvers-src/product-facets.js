@@ -104,7 +104,7 @@ module.exports = {
               facets: facets || [],
             };
           } catch (error) {
-            console.error('Product facets resolver error:', error);
+            context.logger.error(`Product facets error: ${error.message?.substring(0, 60)}`);
             // Return empty facets on error (graceful degradation)
             return { facets: [] };
           }

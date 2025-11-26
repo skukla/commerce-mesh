@@ -251,7 +251,7 @@ module.exports = {
               totalCount: result.totalCount,
             };
           } catch (error) {
-            console.error('Product search filter resolver error:', error);
+            context.logger.error(`Search filter error: ${error.message?.substring(0, 60)}`);
             // Return empty structure on error
             return {
               products: {

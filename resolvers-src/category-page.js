@@ -328,7 +328,7 @@ module.exports = {
             // Assemble and return the complete page response
             return assemblePageResponse(navigation, products, category);
           } catch (error) {
-            console.error('Category page resolver error:', error);
+            context.logger.error(`Category page error: ${error.message?.substring(0, 60)}`);
             // Return minimal structure on error for SSR resilience
             return createEmptyResponse();
           }
