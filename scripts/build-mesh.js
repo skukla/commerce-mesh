@@ -269,6 +269,11 @@ function processResolversWithMappings() {
   if (!fs.existsSync(processedDir)) {
     fs.mkdirSync(processedDir);
   }
+  // Create reference subdirectory in build
+  const processedReferenceDir = path.join(processedDir, 'reference');
+  if (!fs.existsSync(processedReferenceDir)) {
+    fs.mkdirSync(processedReferenceDir, { recursive: true });
+  }
 
   // Load facet mappings
   let facetMappings = {};
@@ -285,11 +290,23 @@ function processResolversWithMappings() {
   const utilities = loadUtilityModules();
 
   // Inject mappings and utilities into each resolver (excluding template and utility files)
-  const resolverFiles = fs
+  // Include resolvers from main directory
+  const mainResolverFiles = fs
     .readdirSync(resolversDir)
     .filter(
       (file) => file.endsWith('.js') && !file.includes('template') && !file.includes('utils')
     );
+
+  // Include resolvers from reference directory
+  const referenceDir = path.join(resolversDir, 'reference');
+  const referenceResolverFiles = fs.existsSync(referenceDir)
+    ? fs
+        .readdirSync(referenceDir)
+        .filter((file) => file.endsWith('.js'))
+        .map((file) => `reference/${file}`)
+    : [];
+
+  const resolverFiles = [...mainResolverFiles, ...referenceResolverFiles];
 
   resolverFiles.forEach((file) => {
     const originalPath = path.join(resolversDir, file);
@@ -405,14 +422,25 @@ function getMeshSourceHash() {
     // 3. Include all resolver source files (matches processResolversWithMappings logic)
     const resolversDir = path.join(__dirname, '..', 'resolvers-src');
     if (fs.existsSync(resolversDir)) {
-      const resolverFiles = fs
+      // Main resolvers
+      const mainResolverFiles = fs
         .readdirSync(resolversDir)
         .filter(
           (file) => file.endsWith('.js') && !file.includes('template') && !file.includes('utils')
-        )
-        .sort();
+        );
 
-      for (const file of resolverFiles) {
+      // Reference resolvers
+      const referenceDir = path.join(resolversDir, 'reference');
+      const referenceResolverFiles = fs.existsSync(referenceDir)
+        ? fs.readdirSync(referenceDir).filter((file) => file.endsWith('.js'))
+        : [];
+
+      const allResolverFiles = [
+        ...mainResolverFiles,
+        ...referenceResolverFiles.map((f) => `reference/${f}`),
+      ].sort();
+
+      for (const file of allResolverFiles) {
         const filePath = path.join(resolversDir, file);
         combinedContent += fs.readFileSync(filePath, 'utf8');
       }

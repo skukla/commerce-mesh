@@ -1,7 +1,19 @@
 /**
- * Category Page Resolver
- * Orchestrates multiple services to provide complete category page data in a single query.
- * Fetches navigation, products, facets, and breadcrumbs in parallel for optimal performance.
+ * REFERENCE IMPLEMENTATION: Unified Query Pattern
+ *
+ * Read-only reference showing unified query orchestration pattern.
+ * Not actively maintained - use as learning example only.
+ *
+ * STATUS: Reference only
+ * LAST SYNCED: January 2025
+ *
+ * For production use, see active resolvers:
+ * - resolvers-src/product-cards.js
+ * - resolvers-src/product-facets.js
+ * - resolvers-src/category-navigation.js
+ *
+ * Frontend reference: citisignal-nextjs/src/reference/unified-query/
+ * Documentation: docs/architecture/context-state-query-pattern-implications.md
  */
 
 // ============================================================================

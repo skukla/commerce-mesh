@@ -113,16 +113,29 @@ The mesh integrates three main Adobe Commerce services:
 2. **Live Search** - AI-powered search, dynamic facets, relevance
 3. **Commerce Core GraphQL** - Categories, navigation, cart, checkout
 
-### Custom Resolvers
+### Resolvers
 
-All custom resolvers follow the `Citisignal_*` naming convention:
+All custom resolvers follow the `Citisignal_*` naming convention.
 
-- `Citisignal_categoryPageData` - Complete category page data (SSR-optimized)
+#### Active Resolvers (start here)
+
+Located in `resolvers-src/`:
+
 - `Citisignal_productCards` - Product listings with pagination
 - `Citisignal_productFacets` - Dynamic filter options
 - `Citisignal_productSearchFilter` - Search with filters
 - `Citisignal_categoryNavigation` - Navigation menus
 - `Citisignal_categoryBreadcrumbs` - Breadcrumb trails
+- Plus more...
+
+#### Reference Implementations
+
+Located in `resolvers-src/reference/`:
+
+- `category-page.js` - Unified query pattern (read-only)
+
+Reference implementations show advanced patterns but are not actively maintained.
+See citisignal-nextjs/src/reference/unified-query/ for frontend example.
 
 ## Dynamic Facet System
 
