@@ -1,5 +1,18 @@
 # context.state Caching: Unified vs Multiple Query Pattern Implications
 
+## Current Status (January 2025)
+
+Unified query pattern moved to reference-only:
+
+**Backend:** `resolvers-src/reference/category-page.js`  
+**Frontend:** `citisignal-nextjs/src/reference/unified-query/`
+
+**Active pattern:** Individual queries (recommended)
+
+Documentation preserved for architectural understanding.
+
+---
+
 ## Executive Summary
 
 Adding `context.state` caching fundamentally changes the performance dynamics between unified and multiple query patterns. What was originally a **25-30% performance advantage for unified queries** is now **reduced to ~5-10%** with proper caching, while individual queries retain superior maintainability and flexibility.
