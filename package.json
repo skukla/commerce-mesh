@@ -1,6 +1,6 @@
 {
   "name": "commerce-mesh",
-  "version": "1.0.0-beta.1",
+  "version": "1.0.0-beta.2",
   "private": true,
   "description": "Adobe API Mesh for Commerce with enhanced product resolvers",
   "dependencies": {

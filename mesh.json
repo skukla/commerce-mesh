@@ -52,12 +52,7 @@
               "includeRootOperations": true
             }
           }
-        ],
-        "responseConfig": {
-          "headers": [
-            "X-Magento-Cache-Id"
-          ]
-        }
+        ]
       },
       {
         "name": "LiveSearchSandbox",

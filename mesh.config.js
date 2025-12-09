@@ -56,9 +56,6 @@ module.exports = {
             },
           },
         ],
-        responseConfig: {
-          headers: ['X-Magento-Cache-Id'],
-        },
       },
       {
         name: 'LiveSearchSandbox',
