@@ -28,7 +28,7 @@ module.exports = {
         name: 'CatalogServiceSandbox',
         handler: {
           graphql: {
-            endpoint: '{env.CATALOG_SERVICE_ENDPOINT}',
+            endpoint: '{env.ADOBE_CATALOG_SERVICE_ENDPOINT}',
             operationHeaders: {
               'Content-Type': 'application/json',
               'Magento-Environment-Id': "{context.headers['magento-environment-id']}",
@@ -61,7 +61,7 @@ module.exports = {
         name: 'LiveSearchSandbox',
         handler: {
           graphql: {
-            endpoint: '{env.CATALOG_SERVICE_ENDPOINT}',
+            endpoint: '{env.ADOBE_CATALOG_SERVICE_ENDPOINT}',
             operationHeaders: {
               'Content-Type': 'application/json',
               'Magento-Environment-Id': "{context.headers['magento-environment-id']}",
